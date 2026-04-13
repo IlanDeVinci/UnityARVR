@@ -1,2 +1,16 @@
 fileFormatVersion: 2
 guid: ff2891c2ba60f5347b285a3468b72788
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - menuPanel: {instanceID: 0}
+  - objectSpawner: {instanceID: 0}
+  - buttonContainer: {instanceID: 0}
+  - buttonPrefab: {instanceID: 0}
+  - menuToggleAction: {fileID: -8580880354330501271, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
