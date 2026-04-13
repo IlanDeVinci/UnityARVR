@@ -1,153 +1,110 @@
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using TMPro;
 
 /// <summary>
-/// Editor tool: builds the entire Pokemon Restaurant scene in one click.
+/// Editor tool: builds the Pokemon Restaurant scene in one click.
+/// Room construction is skipped — use your custom 3D model for the restaurant.
 /// Menu: Pokemon Restaurant > Build All
 /// </summary>
 public class RestaurantBuilder : EditorWindow
 {
-    [MenuItem("Pokemon Restaurant/1 - Build Entire Scene")]
+    // --- Input Action Wiring ---
+
+    /// <summary>
+    /// Finds a persistent InputActionReference sub-asset from the .inputactions file.
+    /// This is the ONLY correct way to assign InputActionReferences that persist in the scene.
+    /// </summary>
+    private static InputActionReference FindActionReference(InputActionAsset asset, string mapName, string actionName)
+    {
+        string assetPath = AssetDatabase.GetAssetPath(asset);
+        Object[] allSubAssets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+
+        foreach (Object subAsset in allSubAssets)
+        {
+            if (subAsset is InputActionReference actionRef
+                && actionRef.action != null
+                && actionRef.action.actionMap.name == mapName
+                && actionRef.action.name == actionName)
+            {
+                return actionRef;
+            }
+        }
+
+        Debug.LogWarning($"[Pokemon Restaurant] InputActionReference not found: {mapName}/{actionName}");
+        return null;
+    }
+
+    /// <summary>
+    /// Finds the InputActionAsset in the project.
+    /// </summary>
+    private static InputActionAsset FindInputActionAsset()
+    {
+        string[] guids = AssetDatabase.FindAssets("InputSystem_Actions t:InputActionAsset");
+        if (guids.Length == 0)
+        {
+            Debug.LogError("[Pokemon Restaurant] InputSystem_Actions.inputactions not found in project!");
+            return null;
+        }
+        string path = AssetDatabase.GUIDToAssetPath(guids[0]);
+        return AssetDatabase.LoadAssetAtPath<InputActionAsset>(path);
+    }
+
+    /// <summary>
+    /// Assigns an InputActionReference to a serialized field on a MonoBehaviour.
+    /// </summary>
+    private static void AssignInputAction(MonoBehaviour target, string fieldName, InputActionAsset asset, string mapName, string actionName)
+    {
+        InputActionReference actionRef = FindActionReference(asset, mapName, actionName);
+        if (actionRef == null) return;
+
+        SerializedObject so = new SerializedObject(target);
+        SerializedProperty prop = so.FindProperty(fieldName);
+        if (prop != null)
+        {
+            prop.objectReferenceValue = actionRef;
+            so.ApplyModifiedProperties();
+        }
+        else
+        {
+            Debug.LogWarning($"[Pokemon Restaurant] Field '{fieldName}' not found on {target.GetType().Name}");
+        }
+    }
+
+    // --- Build Menu Items ---
+
+    [MenuItem("Pokemon Restaurant/1 - Build All (Player + Manager + UI + Wire Inputs)")]
     public static void BuildAll()
     {
-        BuildRoom();
         BuildPlayer();
         BuildGameManager();
         BuildUI();
-        Debug.Log("[Pokemon Restaurant] Scene built successfully! Assign InputActionReferences in the Inspector.");
+        WireAllInputActions();
+        Debug.Log("[Pokemon Restaurant] Done! Place your custom 3D restaurant model in the scene, assign layer 'Ground' to walkable surfaces and 'Interactable' to doors/switches.");
     }
 
-    [MenuItem("Pokemon Restaurant/2 - Build Room Only")]
-    public static void BuildRoom()
-    {
-        // Clean up existing room
-        GameObject existing = GameObject.Find("Restaurant");
-        if (existing != null) Object.DestroyImmediate(existing);
-
-        GameObject restaurant = new GameObject("Restaurant");
-
-        // Floor
-        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
-        floor.name = "Floor";
-        floor.transform.parent = restaurant.transform;
-        floor.transform.localScale = new Vector3(2f, 1f, 2f);
-        floor.transform.position = Vector3.zero;
-        floor.layer = LayerMask.NameToLayer("Ground");
-
-        // Ceiling
-        GameObject ceiling = GameObject.CreatePrimitive(PrimitiveType.Plane);
-        ceiling.name = "Ceiling";
-        ceiling.transform.parent = restaurant.transform;
-        ceiling.transform.localScale = new Vector3(2f, 1f, 2f);
-        ceiling.transform.position = new Vector3(0f, 4f, 0f);
-        ceiling.transform.rotation = Quaternion.Euler(180f, 0f, 0f);
-
-        // Walls
-        CreateWall("Wall_North", restaurant.transform, new Vector3(0f, 2f, 10f), new Vector3(20f, 4f, 0.2f));
-        CreateWall("Wall_South", restaurant.transform, new Vector3(0f, 2f, -10f), new Vector3(20f, 4f, 0.2f));
-        CreateWall("Wall_East", restaurant.transform, new Vector3(10f, 2f, 0f), new Vector3(0.2f, 4f, 20f));
-
-        // West wall with door gap
-        CreateWall("Wall_West_Top", restaurant.transform, new Vector3(-10f, 3.25f, 0f), new Vector3(0.2f, 1.5f, 20f));
-        CreateWall("Wall_West_Left", restaurant.transform, new Vector3(-10f, 1.25f, 5f), new Vector3(0.2f, 2.5f, 10f));
-        CreateWall("Wall_West_Right", restaurant.transform, new Vector3(-10f, 1.25f, -5f), new Vector3(0.2f, 2.5f, 10f));
-
-        // Door (simple cube acting as door)
-        GameObject door = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        door.name = "Door";
-        door.transform.parent = restaurant.transform;
-        door.transform.position = new Vector3(-10f, 1.25f, 0.5f);
-        door.transform.localScale = new Vector3(0.1f, 2.5f, 1.0f);
-        door.layer = LayerMask.NameToLayer("Interactable");
-        door.AddComponent<DoorController>();
-
-        // Light switch (small cube on wall)
-        GameObject lightSwitch = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        lightSwitch.name = "LightSwitch";
-        lightSwitch.transform.parent = restaurant.transform;
-        lightSwitch.transform.position = new Vector3(-9.85f, 1.5f, -1.5f);
-        lightSwitch.transform.localScale = new Vector3(0.1f, 0.15f, 0.1f);
-        lightSwitch.layer = LayerMask.NameToLayer("Interactable");
-        LightSwitchController switchCtrl = lightSwitch.AddComponent<LightSwitchController>();
-
-        // Lights (4 point lights at ceiling + 1 spot for counter area)
-        Light[] roomLights = new Light[5];
-        Vector3[] lightPositions = {
-            new Vector3(-5f, 3.8f, -5f),
-            new Vector3(5f, 3.8f, -5f),
-            new Vector3(-5f, 3.8f, 5f),
-            new Vector3(5f, 3.8f, 5f),
-            new Vector3(0f, 3.8f, 0f)
-        };
-
-        for (int i = 0; i < 5; i++)
-        {
-            GameObject lightObj = new GameObject($"RoomLight_{i}");
-            lightObj.transform.parent = restaurant.transform;
-            lightObj.transform.position = lightPositions[i];
-            Light light = lightObj.AddComponent<Light>();
-            light.type = (i < 4) ? LightType.Point : LightType.Spot;
-            light.intensity = 1.5f;
-            light.range = 12f;
-            light.color = new Color(1f, 0.95f, 0.85f); // warm light
-            light.enabled = false; // off by default, switch turns them on
-            roomLights[i] = light;
-        }
-
-        // Assign lights to switch controller via SerializedObject
-        SerializedObject so = new SerializedObject(switchCtrl);
-        SerializedProperty lightsProp = so.FindProperty("lights");
-        lightsProp.arraySize = roomLights.Length;
-        for (int i = 0; i < roomLights.Length; i++)
-        {
-            lightsProp.GetArrayElementAtIndex(i).objectReferenceValue = roomLights[i];
-        }
-        so.ApplyModifiedProperties();
-
-        // Ambient directional light (always on, dim)
-        GameObject ambientLight = GameObject.Find("Directional Light");
-        if (ambientLight == null)
-        {
-            ambientLight = new GameObject("Directional Light");
-            Light dirLight = ambientLight.AddComponent<Light>();
-            dirLight.type = LightType.Directional;
-            dirLight.intensity = 0.3f;
-            dirLight.color = new Color(0.8f, 0.85f, 1f);
-            ambientLight.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-        }
-
-        // Counter/bar area (simple cube)
-        GameObject counter = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        counter.name = "Counter";
-        counter.transform.parent = restaurant.transform;
-        counter.transform.position = new Vector3(5f, 0.5f, 7f);
-        counter.transform.localScale = new Vector3(6f, 1f, 1.5f);
-
-        Debug.Log("[Pokemon Restaurant] Room built: floor, walls, door, lights, switch, counter.");
-    }
-
-    [MenuItem("Pokemon Restaurant/3 - Build Player Only")]
+    [MenuItem("Pokemon Restaurant/2 - Build Player")]
     public static void BuildPlayer()
     {
         GameObject existing = GameObject.Find("Player");
         if (existing != null) Object.DestroyImmediate(existing);
 
-        // Player
+        // Player root
         GameObject player = new GameObject("Player");
-        player.transform.position = new Vector3(-8f, 1f, 0f); // near door entrance
+        player.transform.position = new Vector3(0f, 1f, 0f);
 
         CharacterController cc = player.AddComponent<CharacterController>();
         cc.height = 2f;
         cc.radius = 0.5f;
-        cc.center = new Vector3(0f, 0f, 0f);
+        cc.center = Vector3.zero;
 
         player.AddComponent<PlayerController>();
         player.AddComponent<PlayerInteraction>();
         player.AddComponent<ObjectSpawner>();
         player.AddComponent<ObjectManipulator>();
 
-        // Camera
+        // Camera as child
         Camera mainCam = Camera.main;
         if (mainCam == null)
         {
@@ -157,31 +114,21 @@ public class RestaurantBuilder : EditorWindow
             camObj.AddComponent<AudioListener>();
         }
 
-        mainCam.transform.parent = player.transform;
+        mainCam.transform.SetParent(player.transform);
         mainCam.transform.localPosition = new Vector3(0f, 0.6f, 0f);
         mainCam.transform.localRotation = Quaternion.identity;
 
-        CameraController camCtrl = mainCam.gameObject.GetComponent<CameraController>();
+        CameraController camCtrl = mainCam.GetComponent<CameraController>();
         if (camCtrl == null)
             camCtrl = mainCam.gameObject.AddComponent<CameraController>();
 
-        // Wire CameraController reference in PlayerInteraction
-        PlayerInteraction interaction = player.GetComponent<PlayerInteraction>();
-        SerializedObject so = new SerializedObject(interaction);
-        SerializedProperty camProp = so.FindProperty("cameraController");
-        if (camProp != null)
-        {
-            camProp.objectReferenceValue = camCtrl;
-            so.ApplyModifiedProperties();
-        }
+        // Wire CameraController ref in PlayerInteraction
+        SetProp(new SerializedObject(player.GetComponent<PlayerInteraction>()), "cameraController", camCtrl);
 
-        // Wire CameraController in HUDController if exists
-        // (will be done when UI is built)
-
-        Debug.Log("[Pokemon Restaurant] Player built with camera, controllers, spawner, manipulator.");
+        Debug.Log("[Pokemon Restaurant] Player built.");
     }
 
-    [MenuItem("Pokemon Restaurant/4 - Build Game Manager Only")]
+    [MenuItem("Pokemon Restaurant/3 - Build Game Manager")]
     public static void BuildGameManager()
     {
         GameObject existing = GameObject.Find("GameManager");
@@ -192,48 +139,42 @@ public class RestaurantBuilder : EditorWindow
         gm.AddComponent<SceneResetManager>();
         gm.AddComponent<AudioManager>();
 
-        // Wire references in GameManager
-        GameManager gmComp = gm.GetComponent<GameManager>();
-        SerializedObject so = new SerializedObject(gmComp);
+        // Wire references
+        SerializedObject so = new SerializedObject(gm.GetComponent<GameManager>());
 
         GameObject player = GameObject.Find("Player");
         if (player != null)
         {
-            SerializedProperty playerProp = so.FindProperty("player");
-            if (playerProp != null)
-                playerProp.objectReferenceValue = player.GetComponent<PlayerController>();
+            SetProp(so, "player", player.GetComponent<PlayerController>());
+            SetProp(so, "objectSpawner", player.GetComponent<ObjectSpawner>());
 
-            SerializedProperty camProp = so.FindProperty("cameraController");
             Camera mainCam = Camera.main;
-            if (camProp != null && mainCam != null)
-                camProp.objectReferenceValue = mainCam.GetComponent<CameraController>();
-
-            SerializedProperty spawnerProp = so.FindProperty("objectSpawner");
-            if (spawnerProp != null)
-                spawnerProp.objectReferenceValue = player.GetComponent<ObjectSpawner>();
+            if (mainCam != null)
+                SetProp(so, "cameraController", mainCam.GetComponent<CameraController>());
         }
-
         so.ApplyModifiedProperties();
 
-        Debug.Log("[Pokemon Restaurant] GameManager built with AudioManager and SceneResetManager.");
+        Debug.Log("[Pokemon Restaurant] GameManager built.");
     }
 
-    [MenuItem("Pokemon Restaurant/5 - Build UI Only")]
+    [MenuItem("Pokemon Restaurant/4 - Build UI")]
     public static void BuildUI()
     {
-        // Clean up
         GameObject existingCanvas = GameObject.Find("GameCanvas");
         if (existingCanvas != null) Object.DestroyImmediate(existingCanvas);
 
-        // Canvas
+        // --- Canvas ---
         GameObject canvas = new GameObject("GameCanvas");
         Canvas c = canvas.AddComponent<Canvas>();
         c.renderMode = RenderMode.ScreenSpaceOverlay;
         c.sortingOrder = 10;
-        canvas.AddComponent<UnityEngine.UI.CanvasScaler>();
+
+        var scaler = canvas.AddComponent<UnityEngine.UI.CanvasScaler>();
+        scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
         canvas.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
-        // Event System (if missing)
+        // EventSystem
         if (Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
         {
             GameObject es = new GameObject("EventSystem");
@@ -243,85 +184,82 @@ public class RestaurantBuilder : EditorWindow
 
         // --- HUD ---
         GameObject hud = new GameObject("HUD");
+        hud.AddComponent<RectTransform>();
         hud.transform.SetParent(canvas.transform, false);
 
-        // Crosshair
+        // Crosshair (small dot)
         GameObject crosshair = new GameObject("Crosshair", typeof(RectTransform), typeof(UnityEngine.UI.Image));
         crosshair.transform.SetParent(hud.transform, false);
         RectTransform crossRT = crosshair.GetComponent<RectTransform>();
-        crossRT.sizeDelta = new Vector2(8f, 8f);
+        crossRT.sizeDelta = new Vector2(6f, 6f);
         crossRT.anchoredPosition = Vector2.zero;
-        crossRT.anchorMin = new Vector2(0.5f, 0.5f);
-        crossRT.anchorMax = new Vector2(0.5f, 0.5f);
-        UnityEngine.UI.Image crossImg = crosshair.GetComponent<UnityEngine.UI.Image>();
-        crossImg.color = Color.white;
+        crossRT.anchorMin = crossRT.anchorMax = new Vector2(0.5f, 0.5f);
+        crosshair.GetComponent<UnityEngine.UI.Image>().color = Color.white;
 
         // Interact text (bottom center)
         GameObject interactText = CreateTMPText("InteractText", hud.transform,
-            new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 60f), new Vector2(500f, 40f),
-            "", 18, TextAlignmentOptions.Center);
+            new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 60f), new Vector2(600f, 40f),
+            "", 20, TextAlignmentOptions.Center);
 
         // Selected object text (bottom left)
         GameObject selectedText = CreateTMPText("SelectedObjectText", hud.transform,
             new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(20f, 20f), new Vector2(400f, 30f),
-            "Objet: Table (F - Placer)", 16, TextAlignmentOptions.Left);
+            "", 16, TextAlignmentOptions.Left);
 
         // Hint text (top center)
         GameObject hintText = CreateTMPText("HintText", hud.transform,
-            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(400f, 30f),
-            "Tab - Menu de spawn | E - Interagir", 14, TextAlignmentOptions.Center);
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(500f, 30f),
+            "Tab - Menu  |  E - Interagir  |  F - Placer", 14, TextAlignmentOptions.Center);
 
-        // Add HUDController
+        // HUDController
         HUDController hudCtrl = hud.AddComponent<HUDController>();
         SerializedObject hudSO = new SerializedObject(hudCtrl);
         SetProp(hudSO, "crosshair", crosshair);
-        SetProp(hudSO, "interactText", interactText.GetComponent<TMPro.TMP_Text>());
-        SetProp(hudSO, "selectedObjectText", selectedText.GetComponent<TMPro.TMP_Text>());
-        SetProp(hudSO, "hintText", hintText.GetComponent<TMPro.TMP_Text>());
+        SetProp(hudSO, "interactText", interactText.GetComponent<TMP_Text>());
+        SetProp(hudSO, "selectedObjectText", selectedText.GetComponent<TMP_Text>());
+        SetProp(hudSO, "hintText", hintText.GetComponent<TMP_Text>());
 
-        // Wire references
         GameObject player = GameObject.Find("Player");
         if (player != null)
         {
             Camera mainCam = Camera.main;
             if (mainCam != null)
                 SetProp(hudSO, "cameraController", mainCam.GetComponent<CameraController>());
-
             SetProp(hudSO, "objectSpawner", player.GetComponent<ObjectSpawner>());
             SetProp(hudSO, "objectManipulator", player.GetComponent<ObjectManipulator>());
         }
         hudSO.ApplyModifiedProperties();
 
-        // --- Spawn Menu ---
+        // --- Spawn Menu Panel ---
         GameObject menuPanel = new GameObject("SpawnMenuPanel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
         menuPanel.transform.SetParent(canvas.transform, false);
         RectTransform menuRT = menuPanel.GetComponent<RectTransform>();
-        menuRT.anchorMin = new Vector2(0.2f, 0.2f);
-        menuRT.anchorMax = new Vector2(0.8f, 0.8f);
-        menuRT.offsetMin = Vector2.zero;
-        menuRT.offsetMax = Vector2.zero;
-        UnityEngine.UI.Image menuBg = menuPanel.GetComponent<UnityEngine.UI.Image>();
-        menuBg.color = new Color(0.15f, 0.15f, 0.15f, 0.9f);
+        menuRT.anchorMin = new Vector2(0.2f, 0.15f);
+        menuRT.anchorMax = new Vector2(0.8f, 0.85f);
+        menuRT.offsetMin = menuRT.offsetMax = Vector2.zero;
+        menuPanel.GetComponent<UnityEngine.UI.Image>().color = new Color(0.12f, 0.12f, 0.12f, 0.92f);
 
-        // Title
+        // Menu title
         CreateTMPText("MenuTitle", menuPanel.transform,
-            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(300f, 40f),
-            "MENU SPAWN - Restaurant Pokemon", 22, TextAlignmentOptions.Center);
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(400f, 45f),
+            "MENU SPAWN - Restaurant Pokemon", 24, TextAlignmentOptions.Center);
 
-        // Grid layout for buttons
+        // Button grid
         GameObject grid = new GameObject("ButtonGrid", typeof(RectTransform));
         grid.transform.SetParent(menuPanel.transform, false);
         RectTransform gridRT = grid.GetComponent<RectTransform>();
-        gridRT.anchorMin = new Vector2(0.05f, 0.1f);
+        gridRT.anchorMin = new Vector2(0.05f, 0.05f);
         gridRT.anchorMax = new Vector2(0.95f, 0.85f);
-        gridRT.offsetMin = Vector2.zero;
-        gridRT.offsetMax = Vector2.zero;
-        UnityEngine.UI.GridLayoutGroup glg = grid.AddComponent<UnityEngine.UI.GridLayoutGroup>();
-        glg.cellSize = new Vector2(120f, 80f);
-        glg.spacing = new Vector2(15f, 15f);
-        glg.childAlignment = TextAnchor.MiddleCenter;
+        gridRT.offsetMin = gridRT.offsetMax = Vector2.zero;
 
-        // SpawnMenuUI component
+        var glg = grid.AddComponent<UnityEngine.UI.GridLayoutGroup>();
+        glg.cellSize = new Vector2(130f, 90f);
+        glg.spacing = new Vector2(15f, 15f);
+        glg.childAlignment = TextAnchor.UpperCenter;
+        glg.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
+        glg.constraintCount = 4;
+
+        // SpawnMenuUI
         SpawnMenuUI spawnMenu = canvas.AddComponent<SpawnMenuUI>();
         SerializedObject menuSO = new SerializedObject(spawnMenu);
         SetProp(menuSO, "menuPanel", menuPanel);
@@ -330,31 +268,85 @@ public class RestaurantBuilder : EditorWindow
             SetProp(menuSO, "objectSpawner", player.GetComponent<ObjectSpawner>());
         menuSO.ApplyModifiedProperties();
 
-        // Wire SpawnMenuUI in GameManager
+        // Wire into GameManager
         GameObject gmObj = GameObject.Find("GameManager");
         if (gmObj != null)
         {
-            GameManager gm = gmObj.GetComponent<GameManager>();
-            SerializedObject gmSO = new SerializedObject(gm);
+            SerializedObject gmSO = new SerializedObject(gmObj.GetComponent<GameManager>());
             SetProp(gmSO, "spawnMenuUI", spawnMenu);
             gmSO.ApplyModifiedProperties();
         }
 
         menuPanel.SetActive(false);
 
-        Debug.Log("[Pokemon Restaurant] UI built: HUD (crosshair, texts) + Spawn Menu panel.");
+        Debug.Log("[Pokemon Restaurant] UI built.");
+    }
+
+    [MenuItem("Pokemon Restaurant/5 - Wire All Input Actions")]
+    public static void WireAllInputActions()
+    {
+        InputActionAsset asset = FindInputActionAsset();
+        if (asset == null) return;
+
+        GameObject player = GameObject.Find("Player");
+        if (player == null)
+        {
+            Debug.LogError("[Pokemon Restaurant] Player not found! Run Build Player first.");
+            return;
+        }
+
+        Camera mainCam = Camera.main;
+
+        // PlayerController: Move, Sprint
+        PlayerController pc = player.GetComponent<PlayerController>();
+        if (pc != null)
+        {
+            AssignInputAction(pc, "moveAction", asset, "Player", "Move");
+            AssignInputAction(pc, "sprintAction", asset, "Player", "Sprint");
+        }
+
+        // CameraController: Look
+        if (mainCam != null)
+        {
+            CameraController cc = mainCam.GetComponent<CameraController>();
+            if (cc != null)
+                AssignInputAction(cc, "lookAction", asset, "Player", "Look");
+        }
+
+        // PlayerInteraction: Interact
+        PlayerInteraction pi = player.GetComponent<PlayerInteraction>();
+        if (pi != null)
+            AssignInputAction(pi, "interactAction", asset, "Player", "Interact");
+
+        // ObjectSpawner: Spawn
+        ObjectSpawner os = player.GetComponent<ObjectSpawner>();
+        if (os != null)
+            AssignInputAction(os, "spawnAction", asset, "Player", "Spawn");
+
+        // ObjectManipulator: Attack (click), Rotate, Delete, Look
+        ObjectManipulator om = player.GetComponent<ObjectManipulator>();
+        if (om != null)
+        {
+            AssignInputAction(om, "clickAction", asset, "Player", "Attack");
+            AssignInputAction(om, "rotateAction", asset, "Player", "Rotate");
+            AssignInputAction(om, "deleteAction", asset, "Player", "Delete");
+            AssignInputAction(om, "lookAction", asset, "Player", "Look");
+        }
+
+        // SpawnMenuUI: OpenMenu
+        SpawnMenuUI smu = Object.FindAnyObjectByType<SpawnMenuUI>();
+        if (smu != null)
+            AssignInputAction(smu, "menuToggleAction", asset, "Player", "OpenMenu");
+
+        // SceneResetManager: Reset
+        SceneResetManager srm = Object.FindAnyObjectByType<SceneResetManager>();
+        if (srm != null)
+            AssignInputAction(srm, "resetAction", asset, "Player", "Reset");
+
+        Debug.Log("[Pokemon Restaurant] All InputActionReferences wired successfully!");
     }
 
     // --- Helpers ---
-
-    private static void CreateWall(string name, Transform parent, Vector3 pos, Vector3 scale)
-    {
-        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        wall.name = name;
-        wall.transform.parent = parent;
-        wall.transform.position = pos;
-        wall.transform.localScale = scale;
-    }
 
     private static GameObject CreateTMPText(string name, Transform parent,
         Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPos, Vector2 sizeDelta,
@@ -368,7 +360,7 @@ public class RestaurantBuilder : EditorWindow
         rt.anchoredPosition = anchoredPos;
         rt.sizeDelta = sizeDelta;
 
-        TMPro.TextMeshProUGUI tmp = obj.AddComponent<TMPro.TextMeshProUGUI>();
+        TextMeshProUGUI tmp = obj.AddComponent<TextMeshProUGUI>();
         tmp.text = text;
         tmp.fontSize = fontSize;
         tmp.alignment = alignment;
