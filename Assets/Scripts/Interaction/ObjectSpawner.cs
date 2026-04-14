@@ -1,6 +1,11 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
+/// <summary>
+/// Spawns furniture at the point where the right controller's ray hits the ground.
+/// Uses XR controller ray for positioning.
+/// </summary>
 public class ObjectSpawner : MonoBehaviour
 {
     [Header("Spawnable Prefabs")]
@@ -10,15 +15,19 @@ public class ObjectSpawner : MonoBehaviour
     [SerializeField] private float spawnDistance = 3f;
     [SerializeField] private LayerMask groundLayer;
 
-    [Header("Input")]
+    [Header("XR References")]
+    [SerializeField] private XRRayInteractor rightHandRay;
+
+    [Header("Input - Bind to right controller button (e.g. Primary Button / A)")]
     [SerializeField] private InputActionReference spawnAction;
+    [SerializeField] private InputActionReference nextItemAction;
+    [SerializeField] private InputActionReference prevItemAction;
 
     [Header("Audio")]
     [SerializeField] private AudioClip spawnSound;
 
     private AudioSource audioSource;
     private int selectedIndex;
-    private Camera mainCam;
 
     public SpawnableItem[] SpawnableItems => spawnableItems;
     public int SelectedIndex => selectedIndex;
@@ -28,31 +37,57 @@ public class ObjectSpawner : MonoBehaviour
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
-
-        mainCam = Camera.main;
     }
 
     private void OnEnable()
     {
-        spawnAction.action.Enable();
-        spawnAction.action.performed += OnSpawn;
+        if (spawnAction != null && spawnAction.action != null)
+        {
+            spawnAction.action.Enable();
+            spawnAction.action.performed += OnSpawn;
+        }
+        if (nextItemAction != null && nextItemAction.action != null)
+        {
+            nextItemAction.action.Enable();
+            nextItemAction.action.performed += OnNextItem;
+        }
+        if (prevItemAction != null && prevItemAction.action != null)
+        {
+            prevItemAction.action.Enable();
+            prevItemAction.action.performed += OnPrevItem;
+        }
     }
 
     private void OnDisable()
     {
-        spawnAction.action.performed -= OnSpawn;
-        spawnAction.action.Disable();
+        if (spawnAction != null && spawnAction.action != null)
+        {
+            spawnAction.action.performed -= OnSpawn;
+            spawnAction.action.Disable();
+        }
+        if (nextItemAction != null && nextItemAction.action != null)
+        {
+            nextItemAction.action.performed -= OnNextItem;
+            nextItemAction.action.Disable();
+        }
+        if (prevItemAction != null && prevItemAction.action != null)
+        {
+            prevItemAction.action.performed -= OnPrevItem;
+            prevItemAction.action.Disable();
+        }
     }
 
     public void SetSelectedIndex(int index)
     {
-        selectedIndex = Mathf.Clamp(index, 0, spawnableItems.Length - 1);
+        if (spawnableItems.Length == 0) return;
+        selectedIndex = ((index % spawnableItems.Length) + spawnableItems.Length) % spawnableItems.Length;
     }
+
+    private void OnNextItem(InputAction.CallbackContext ctx) => SetSelectedIndex(selectedIndex + 1);
+    private void OnPrevItem(InputAction.CallbackContext ctx) => SetSelectedIndex(selectedIndex - 1);
 
     private void OnSpawn(InputAction.CallbackContext ctx)
     {
-        // Don't spawn if menu is open
-        if (GameManager.Instance != null && GameManager.Instance.IsMenuOpen) return;
         if (spawnableItems.Length == 0) return;
 
         Vector3 spawnPos = GetSpawnPosition();
@@ -63,26 +98,44 @@ public class ObjectSpawner : MonoBehaviour
         );
         obj.tag = "SpawnedObject";
 
+        // Make spawned objects grabbable in VR
+        if (obj.GetComponent<Rigidbody>() == null)
+        {
+            Rigidbody rb = obj.AddComponent<Rigidbody>();
+            rb.mass = 1f;
+        }
+
+        var grabInteractable = obj.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+        if (grabInteractable == null)
+            obj.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+
         if (spawnSound != null)
             audioSource.PlayOneShot(spawnSound);
     }
 
     private Vector3 GetSpawnPosition()
     {
-        // Raycast from camera to find ground position in front of player
-        Ray ray = new Ray(mainCam.transform.position, mainCam.transform.forward);
-        if (Physics.Raycast(ray, out RaycastHit hit, spawnDistance * 2f, groundLayer))
+        // Use the XR ray interactor's hit point if available
+        if (rightHandRay != null && rightHandRay.TryGetCurrent3DRaycastHit(out RaycastHit xrHit))
         {
-            return hit.point;
+            return xrHit.point;
         }
 
-        // Fallback: spawn in front of player at ground level
-        Vector3 forward = mainCam.transform.forward;
-        forward.y = 0f;
-        forward.Normalize();
-        Vector3 pos = transform.position + forward * spawnDistance;
-        pos.y = 0f;
-        return pos;
+        // Fallback: use headset forward direction
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            Ray ray = new Ray(cam.transform.position, cam.transform.forward);
+            if (Physics.Raycast(ray, out RaycastHit hit, spawnDistance * 2f, groundLayer))
+                return hit.point;
+
+            Vector3 forward = cam.transform.forward;
+            forward.y = 0f;
+            forward.Normalize();
+            return cam.transform.position + forward * spawnDistance;
+        }
+
+        return transform.position + Vector3.forward * spawnDistance;
     }
 }
 

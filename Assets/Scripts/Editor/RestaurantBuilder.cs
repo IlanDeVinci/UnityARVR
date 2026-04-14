@@ -4,18 +4,18 @@ using UnityEngine.InputSystem;
 using TMPro;
 
 /// <summary>
-/// Editor tool: builds the Pokemon Restaurant scene in one click.
-/// Room construction is skipped — use your custom 3D model for the restaurant.
+/// Editor tool: sets up the Pokemon Restaurant VR scene.
+/// Uses XR Interaction Toolkit's XR Origin from Starter Assets.
 /// Menu: Pokemon Restaurant > Build All
+///
+/// PREREQUISITES:
+/// 1. Import "Starter Assets" sample from XR Interaction Toolkit in Package Manager
+/// 2. Place your custom 3D restaurant model in the scene
 /// </summary>
 public class RestaurantBuilder : EditorWindow
 {
     // --- Input Action Wiring ---
 
-    /// <summary>
-    /// Finds a persistent InputActionReference sub-asset from the .inputactions file.
-    /// This is the ONLY correct way to assign InputActionReferences that persist in the scene.
-    /// </summary>
     private static InputActionReference FindActionReference(InputActionAsset asset, string mapName, string actionName)
     {
         string assetPath = AssetDatabase.GetAssetPath(asset);
@@ -36,24 +36,28 @@ public class RestaurantBuilder : EditorWindow
         return null;
     }
 
-    /// <summary>
-    /// Finds the InputActionAsset in the project.
-    /// </summary>
     private static InputActionAsset FindInputActionAsset()
     {
-        string[] guids = AssetDatabase.FindAssets("InputSystem_Actions t:InputActionAsset");
-        if (guids.Length == 0)
+        // Try XRI default actions first
+        string[] guids = AssetDatabase.FindAssets("XRI Default Input Actions t:InputActionAsset");
+        if (guids.Length > 0)
         {
-            Debug.LogError("[Pokemon Restaurant] InputSystem_Actions.inputactions not found in project!");
-            return null;
+            string path = AssetDatabase.GUIDToAssetPath(guids[0]);
+            return AssetDatabase.LoadAssetAtPath<InputActionAsset>(path);
         }
-        string path = AssetDatabase.GUIDToAssetPath(guids[0]);
-        return AssetDatabase.LoadAssetAtPath<InputActionAsset>(path);
+
+        // Fallback to our custom one
+        guids = AssetDatabase.FindAssets("InputSystem_Actions t:InputActionAsset");
+        if (guids.Length > 0)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guids[0]);
+            return AssetDatabase.LoadAssetAtPath<InputActionAsset>(path);
+        }
+
+        Debug.LogError("[Pokemon Restaurant] No InputActionAsset found!");
+        return null;
     }
 
-    /// <summary>
-    /// Assigns an InputActionReference to a serialized field on a MonoBehaviour.
-    /// </summary>
     private static void AssignInputAction(MonoBehaviour target, string fieldName, InputActionAsset asset, string mapName, string actionName)
     {
         InputActionReference actionRef = FindActionReference(asset, mapName, actionName);
@@ -66,66 +70,63 @@ public class RestaurantBuilder : EditorWindow
             prop.objectReferenceValue = actionRef;
             so.ApplyModifiedProperties();
         }
-        else
-        {
-            Debug.LogWarning($"[Pokemon Restaurant] Field '{fieldName}' not found on {target.GetType().Name}");
-        }
     }
 
     // --- Build Menu Items ---
 
-    [MenuItem("Pokemon Restaurant/1 - Build All (Player + Manager + UI + Wire Inputs)")]
-    public static void BuildAll()
+    [MenuItem("Pokemon Restaurant/1 - Setup Game Systems (Manager + Scripts on XR Origin)")]
+    public static void SetupGameSystems()
     {
-        BuildPlayer();
+        SetupXROriginScripts();
         BuildGameManager();
-        BuildUI();
-        WireAllInputActions();
-        Debug.Log("[Pokemon Restaurant] Done! Place your custom 3D restaurant model in the scene, assign layer 'Ground' to walkable surfaces and 'Interactable' to doors/switches.");
+        Debug.Log("[Pokemon Restaurant] Game systems setup complete!");
     }
 
-    [MenuItem("Pokemon Restaurant/2 - Build Player")]
-    public static void BuildPlayer()
+    [MenuItem("Pokemon Restaurant/2 - Setup XR Origin Scripts")]
+    public static void SetupXROriginScripts()
     {
-        GameObject existing = GameObject.Find("Player");
-        if (existing != null) Object.DestroyImmediate(existing);
-
-        // Player root
-        GameObject player = new GameObject("Player");
-        player.transform.position = new Vector3(0f, 1f, 0f);
-
-        CharacterController cc = player.AddComponent<CharacterController>();
-        cc.height = 2f;
-        cc.radius = 0.5f;
-        cc.center = Vector3.zero;
-
-        player.AddComponent<PlayerController>();
-        player.AddComponent<PlayerInteraction>();
-        player.AddComponent<ObjectSpawner>();
-        player.AddComponent<ObjectManipulator>();
-
-        // Camera as child
-        Camera mainCam = Camera.main;
-        if (mainCam == null)
+        // Find XR Origin in scene
+        var xrOrigin = Object.FindAnyObjectByType<Unity.XR.CoreUtils.XROrigin>();
+        if (xrOrigin == null)
         {
-            GameObject camObj = new GameObject("Main Camera");
-            camObj.tag = "MainCamera";
-            mainCam = camObj.AddComponent<Camera>();
-            camObj.AddComponent<AudioListener>();
+            Debug.LogError("[Pokemon Restaurant] XR Origin not found in scene!\n" +
+                "1. Open Package Manager > XR Interaction Toolkit > Samples\n" +
+                "2. Import 'Starter Assets'\n" +
+                "3. Drag the 'XR Origin (XR Rig)' prefab from Samples into your scene\n" +
+                "4. Run this menu again.");
+            return;
         }
 
-        mainCam.transform.SetParent(player.transform);
-        mainCam.transform.localPosition = new Vector3(0f, 0.6f, 0f);
-        mainCam.transform.localRotation = Quaternion.identity;
+        GameObject xrRoot = xrOrigin.gameObject;
 
-        CameraController camCtrl = mainCam.GetComponent<CameraController>();
-        if (camCtrl == null)
-            camCtrl = mainCam.gameObject.AddComponent<CameraController>();
+        // Add our scripts to XR Origin root
+        if (xrRoot.GetComponent<PlayerController>() == null)
+            xrRoot.AddComponent<PlayerController>();
+        if (xrRoot.GetComponent<PlayerInteraction>() == null)
+            xrRoot.AddComponent<PlayerInteraction>();
+        if (xrRoot.GetComponent<ObjectSpawner>() == null)
+            xrRoot.AddComponent<ObjectSpawner>();
+        if (xrRoot.GetComponent<ObjectManipulator>() == null)
+            xrRoot.AddComponent<ObjectManipulator>();
 
-        // Wire CameraController ref in PlayerInteraction
-        SetProp(new SerializedObject(player.GetComponent<PlayerInteraction>()), "cameraController", camCtrl);
+        // Add CameraController to the XR camera
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
+        {
+            if (mainCam.GetComponent<CameraController>() == null)
+                mainCam.gameObject.AddComponent<CameraController>();
+        }
 
-        Debug.Log("[Pokemon Restaurant] Player built.");
+        // Wire ObjectManipulator -> CameraController
+        ObjectManipulator om = xrRoot.GetComponent<ObjectManipulator>();
+        if (om != null && mainCam != null)
+        {
+            SerializedObject omSO = new SerializedObject(om);
+            SetProp(omSO, "cameraController", mainCam.GetComponent<CameraController>());
+            omSO.ApplyModifiedProperties();
+        }
+
+        Debug.Log("[Pokemon Restaurant] Scripts added to XR Origin.");
     }
 
     [MenuItem("Pokemon Restaurant/3 - Build Game Manager")]
@@ -140,121 +141,76 @@ public class RestaurantBuilder : EditorWindow
         gm.AddComponent<AudioManager>();
 
         // Wire references
-        SerializedObject so = new SerializedObject(gm.GetComponent<GameManager>());
-
-        GameObject player = GameObject.Find("Player");
-        if (player != null)
+        var xrOrigin = Object.FindAnyObjectByType<Unity.XR.CoreUtils.XROrigin>();
+        if (xrOrigin != null)
         {
-            SetProp(so, "player", player.GetComponent<PlayerController>());
-            SetProp(so, "objectSpawner", player.GetComponent<ObjectSpawner>());
-
+            GameObject xrRoot = xrOrigin.gameObject;
+            SerializedObject so = new SerializedObject(gm.GetComponent<GameManager>());
+            SetProp(so, "player", xrRoot.GetComponent<PlayerController>());
+            SetProp(so, "objectSpawner", xrRoot.GetComponent<ObjectSpawner>());
             Camera mainCam = Camera.main;
             if (mainCam != null)
                 SetProp(so, "cameraController", mainCam.GetComponent<CameraController>());
+            so.ApplyModifiedProperties();
         }
-        so.ApplyModifiedProperties();
 
         Debug.Log("[Pokemon Restaurant] GameManager built.");
     }
 
-    [MenuItem("Pokemon Restaurant/4 - Build UI")]
-    public static void BuildUI()
+    [MenuItem("Pokemon Restaurant/4 - Build VR Spawn Menu (World Space Canvas)")]
+    public static void BuildVRSpawnMenu()
     {
-        GameObject existingCanvas = GameObject.Find("GameCanvas");
+        // Clean up
+        GameObject existingCanvas = GameObject.Find("VRSpawnMenuCanvas");
         if (existingCanvas != null) Object.DestroyImmediate(existingCanvas);
 
-        // --- Canvas ---
-        GameObject canvas = new GameObject("GameCanvas");
+        // World Space Canvas (for VR)
+        GameObject canvas = new GameObject("VRSpawnMenuCanvas");
         Canvas c = canvas.AddComponent<Canvas>();
-        c.renderMode = RenderMode.ScreenSpaceOverlay;
-        c.sortingOrder = 10;
+        c.renderMode = RenderMode.WorldSpace;
 
-        var scaler = canvas.AddComponent<UnityEngine.UI.CanvasScaler>();
-        scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        canvas.AddComponent<UnityEngine.UI.CanvasScaler>();
         canvas.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
-        // EventSystem
-        if (Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
-        {
-            GameObject es = new GameObject("EventSystem");
-            es.AddComponent<UnityEngine.EventSystems.EventSystem>();
-            es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
-        }
+        // Size and position the canvas
+        RectTransform canvasRT = canvas.GetComponent<RectTransform>();
+        canvasRT.sizeDelta = new Vector2(600f, 400f);
+        canvasRT.localScale = Vector3.one * 0.001f; // 1mm per pixel, so 60cm x 40cm
+        canvas.transform.position = new Vector3(0f, 1.2f, 1.5f); // in front of player at start
 
-        // --- HUD ---
-        GameObject hud = new GameObject("HUD");
-        hud.AddComponent<RectTransform>();
-        hud.transform.SetParent(canvas.transform, false);
+        // Optionally parent to left hand for wrist menu
+        // (user can reparent this to LeftHand Controller in the hierarchy)
 
-        // Crosshair (small dot)
-        GameObject crosshair = new GameObject("Crosshair", typeof(RectTransform), typeof(UnityEngine.UI.Image));
-        crosshair.transform.SetParent(hud.transform, false);
-        RectTransform crossRT = crosshair.GetComponent<RectTransform>();
-        crossRT.sizeDelta = new Vector2(6f, 6f);
-        crossRT.anchoredPosition = Vector2.zero;
-        crossRT.anchorMin = crossRT.anchorMax = new Vector2(0.5f, 0.5f);
-        crosshair.GetComponent<UnityEngine.UI.Image>().color = Color.white;
-
-        // Interact text (bottom center)
-        GameObject interactText = CreateTMPText("InteractText", hud.transform,
-            new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 60f), new Vector2(600f, 40f),
-            "", 20, TextAlignmentOptions.Center);
-
-        // Selected object text (bottom left)
-        GameObject selectedText = CreateTMPText("SelectedObjectText", hud.transform,
-            new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(20f, 20f), new Vector2(400f, 30f),
-            "", 16, TextAlignmentOptions.Left);
-
-        // Hint text (top center)
-        GameObject hintText = CreateTMPText("HintText", hud.transform,
-            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(500f, 30f),
-            "Tab - Menu  |  E - Interagir  |  F - Placer", 14, TextAlignmentOptions.Center);
-
-        // HUDController
-        HUDController hudCtrl = hud.AddComponent<HUDController>();
-        SerializedObject hudSO = new SerializedObject(hudCtrl);
-        SetProp(hudSO, "crosshair", crosshair);
-        SetProp(hudSO, "interactText", interactText.GetComponent<TMP_Text>());
-        SetProp(hudSO, "selectedObjectText", selectedText.GetComponent<TMP_Text>());
-        SetProp(hudSO, "hintText", hintText.GetComponent<TMP_Text>());
-
-        GameObject player = GameObject.Find("Player");
-        if (player != null)
-        {
-            Camera mainCam = Camera.main;
-            if (mainCam != null)
-                SetProp(hudSO, "cameraController", mainCam.GetComponent<CameraController>());
-            SetProp(hudSO, "objectSpawner", player.GetComponent<ObjectSpawner>());
-            SetProp(hudSO, "objectManipulator", player.GetComponent<ObjectManipulator>());
-        }
-        hudSO.ApplyModifiedProperties();
-
-        // --- Spawn Menu Panel ---
+        // Menu panel
         GameObject menuPanel = new GameObject("SpawnMenuPanel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
         menuPanel.transform.SetParent(canvas.transform, false);
         RectTransform menuRT = menuPanel.GetComponent<RectTransform>();
-        menuRT.anchorMin = new Vector2(0.2f, 0.15f);
-        menuRT.anchorMax = new Vector2(0.8f, 0.85f);
+        menuRT.anchorMin = Vector2.zero;
+        menuRT.anchorMax = Vector2.one;
         menuRT.offsetMin = menuRT.offsetMax = Vector2.zero;
-        menuPanel.GetComponent<UnityEngine.UI.Image>().color = new Color(0.12f, 0.12f, 0.12f, 0.92f);
+        menuPanel.GetComponent<UnityEngine.UI.Image>().color = new Color(0.1f, 0.1f, 0.1f, 0.9f);
 
-        // Menu title
+        // Title
         CreateTMPText("MenuTitle", menuPanel.transform,
-            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(400f, 45f),
-            "MENU SPAWN - Restaurant Pokemon", 24, TextAlignmentOptions.Center);
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -25f), new Vector2(500f, 40f),
+            "MENU SPAWN - Restaurant Pokemon", 28, TextAlignmentOptions.Center);
+
+        // Selected item text
+        GameObject selectedText = CreateTMPText("SelectedText", menuPanel.transform,
+            new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 25f), new Vector2(400f, 30f),
+            "", 20, TextAlignmentOptions.Center);
 
         // Button grid
         GameObject grid = new GameObject("ButtonGrid", typeof(RectTransform));
         grid.transform.SetParent(menuPanel.transform, false);
         RectTransform gridRT = grid.GetComponent<RectTransform>();
-        gridRT.anchorMin = new Vector2(0.05f, 0.05f);
+        gridRT.anchorMin = new Vector2(0.05f, 0.1f);
         gridRT.anchorMax = new Vector2(0.95f, 0.85f);
         gridRT.offsetMin = gridRT.offsetMax = Vector2.zero;
 
         var glg = grid.AddComponent<UnityEngine.UI.GridLayoutGroup>();
-        glg.cellSize = new Vector2(130f, 90f);
-        glg.spacing = new Vector2(15f, 15f);
+        glg.cellSize = new Vector2(130f, 80f);
+        glg.spacing = new Vector2(10f, 10f);
         glg.childAlignment = TextAnchor.UpperCenter;
         glg.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
         glg.constraintCount = 4;
@@ -264,8 +220,12 @@ public class RestaurantBuilder : EditorWindow
         SerializedObject menuSO = new SerializedObject(spawnMenu);
         SetProp(menuSO, "menuPanel", menuPanel);
         SetProp(menuSO, "buttonContainer", grid.transform);
-        if (player != null)
-            SetProp(menuSO, "objectSpawner", player.GetComponent<ObjectSpawner>());
+
+        var xrOrigin = Object.FindAnyObjectByType<Unity.XR.CoreUtils.XROrigin>();
+        if (xrOrigin != null)
+        {
+            SetProp(menuSO, "objectSpawner", xrOrigin.GetComponent<ObjectSpawner>());
+        }
         menuSO.ApplyModifiedProperties();
 
         // Wire into GameManager
@@ -279,71 +239,14 @@ public class RestaurantBuilder : EditorWindow
 
         menuPanel.SetActive(false);
 
-        Debug.Log("[Pokemon Restaurant] UI built.");
-    }
+        // Add TrackedDevice Graphic Raycaster for VR UI interaction
+        // (requires XRI's TrackedDeviceGraphicRaycaster)
+        var existingRaycaster = canvas.GetComponent<UnityEngine.UI.GraphicRaycaster>();
+        if (existingRaycaster != null)
+            Object.DestroyImmediate(existingRaycaster);
+        canvas.AddComponent<UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster>();
 
-    [MenuItem("Pokemon Restaurant/5 - Wire All Input Actions")]
-    public static void WireAllInputActions()
-    {
-        InputActionAsset asset = FindInputActionAsset();
-        if (asset == null) return;
-
-        GameObject player = GameObject.Find("Player");
-        if (player == null)
-        {
-            Debug.LogError("[Pokemon Restaurant] Player not found! Run Build Player first.");
-            return;
-        }
-
-        Camera mainCam = Camera.main;
-
-        // PlayerController: Move, Sprint
-        PlayerController pc = player.GetComponent<PlayerController>();
-        if (pc != null)
-        {
-            AssignInputAction(pc, "moveAction", asset, "Player", "Move");
-            AssignInputAction(pc, "sprintAction", asset, "Player", "Sprint");
-        }
-
-        // CameraController: Look
-        if (mainCam != null)
-        {
-            CameraController cc = mainCam.GetComponent<CameraController>();
-            if (cc != null)
-                AssignInputAction(cc, "lookAction", asset, "Player", "Look");
-        }
-
-        // PlayerInteraction: Interact
-        PlayerInteraction pi = player.GetComponent<PlayerInteraction>();
-        if (pi != null)
-            AssignInputAction(pi, "interactAction", asset, "Player", "Interact");
-
-        // ObjectSpawner: Spawn
-        ObjectSpawner os = player.GetComponent<ObjectSpawner>();
-        if (os != null)
-            AssignInputAction(os, "spawnAction", asset, "Player", "Spawn");
-
-        // ObjectManipulator: Attack (click), Rotate, Delete, Look
-        ObjectManipulator om = player.GetComponent<ObjectManipulator>();
-        if (om != null)
-        {
-            AssignInputAction(om, "clickAction", asset, "Player", "Attack");
-            AssignInputAction(om, "rotateAction", asset, "Player", "Rotate");
-            AssignInputAction(om, "deleteAction", asset, "Player", "Delete");
-            AssignInputAction(om, "lookAction", asset, "Player", "Look");
-        }
-
-        // SpawnMenuUI: OpenMenu
-        SpawnMenuUI smu = Object.FindAnyObjectByType<SpawnMenuUI>();
-        if (smu != null)
-            AssignInputAction(smu, "menuToggleAction", asset, "Player", "OpenMenu");
-
-        // SceneResetManager: Reset
-        SceneResetManager srm = Object.FindAnyObjectByType<SceneResetManager>();
-        if (srm != null)
-            AssignInputAction(srm, "resetAction", asset, "Player", "Reset");
-
-        Debug.Log("[Pokemon Restaurant] All InputActionReferences wired successfully!");
+        Debug.Log("[Pokemon Restaurant] VR Spawn Menu built (World Space Canvas). Parented to scene root - you can reparent to Left Controller for wrist menu.");
     }
 
     // --- Helpers ---

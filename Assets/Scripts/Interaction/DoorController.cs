@@ -1,11 +1,18 @@
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
+/// <summary>
+/// Animated door that opens/closes when selected with an XR controller.
+/// Automatically adds XRSimpleInteractable if missing.
+/// </summary>
+[RequireComponent(typeof(Collider))]
 public class DoorController : MonoBehaviour
 {
     [Header("Door Settings")]
     [SerializeField] private float openAngle = 90f;
     [SerializeField] private float openSpeed = 3f;
-    [SerializeField] private Transform pivot; // assign door pivot point
+    [SerializeField] private Transform pivot;
 
     [Header("Audio")]
     [SerializeField] private AudioClip openSound;
@@ -22,10 +29,25 @@ public class DoorController : MonoBehaviour
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.spatialBlend = 1f; // 3D sound in VR
 
         Transform target = pivot != null ? pivot : transform;
         closedRotation = target.localRotation;
         openRotation = closedRotation * Quaternion.Euler(0f, openAngle, 0f);
+
+        // Auto-setup XR interactable
+        var interactable = GetComponent<XRSimpleInteractable>();
+        if (interactable == null)
+            interactable = gameObject.AddComponent<XRSimpleInteractable>();
+
+        interactable.selectEntered.AddListener(OnSelected);
+    }
+
+    private void OnDestroy()
+    {
+        var interactable = GetComponent<XRSimpleInteractable>();
+        if (interactable != null)
+            interactable.selectEntered.RemoveListener(OnSelected);
     }
 
     private void Update()
@@ -36,9 +58,11 @@ public class DoorController : MonoBehaviour
         target.localRotation = Quaternion.Slerp(closedRotation, openRotation, t);
     }
 
-    /// <summary>
-    /// Called by the player interaction system when clicking the door.
-    /// </summary>
+    private void OnSelected(SelectEnterEventArgs args)
+    {
+        ToggleDoor();
+    }
+
     public void ToggleDoor()
     {
         isOpen = !isOpen;

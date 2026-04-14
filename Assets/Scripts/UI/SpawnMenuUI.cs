@@ -3,49 +3,65 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using TMPro;
 
+/// <summary>
+/// VR Spawn Menu - displayed as a World Space Canvas attached to the left hand
+/// or floating in front of the player.
+/// Toggle with a controller button (e.g. Menu / Y button).
+/// </summary>
 public class SpawnMenuUI : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private GameObject menuPanel;
     [SerializeField] private ObjectSpawner objectSpawner;
     [SerializeField] private Transform buttonContainer;
-    [SerializeField] private GameObject buttonPrefab; // Button with Image + Text
+    [SerializeField] private GameObject buttonPrefab;
 
     [Header("Input")]
     [SerializeField] private InputActionReference menuToggleAction;
 
     [Header("Visual")]
-    [SerializeField] private Color selectedColor = new Color(1f, 0.8f, 0.2f);  // Pokemon yellow
+    [SerializeField] private Color selectedColor = new Color(1f, 0.8f, 0.2f);
     [SerializeField] private Color normalColor = Color.white;
 
     private Button[] buttons;
 
     private void OnEnable()
     {
-        menuToggleAction.action.Enable();
-        menuToggleAction.action.performed += OnToggleMenu;
+        if (menuToggleAction != null && menuToggleAction.action != null)
+        {
+            menuToggleAction.action.Enable();
+            menuToggleAction.action.performed += OnToggleMenu;
+        }
     }
 
     private void OnDisable()
     {
-        menuToggleAction.action.performed -= OnToggleMenu;
-        menuToggleAction.action.Disable();
+        if (menuToggleAction != null && menuToggleAction.action != null)
+        {
+            menuToggleAction.action.performed -= OnToggleMenu;
+            menuToggleAction.action.Disable();
+        }
     }
 
     private void Start()
     {
-        menuPanel.SetActive(false);
+        if (menuPanel != null)
+            menuPanel.SetActive(false);
         BuildMenu();
     }
 
     private void BuildMenu()
     {
+        if (objectSpawner == null) return;
+
         SpawnableItem[] items = objectSpawner.SpawnableItems;
+        if (items == null || items.Length == 0) return;
+
         buttons = new Button[items.Length];
 
         for (int i = 0; i < items.Length; i++)
         {
-            int index = i; // capture for closure
+            int index = i;
             GameObject btnObj;
 
             if (buttonPrefab != null)
@@ -54,17 +70,27 @@ public class SpawnMenuUI : MonoBehaviour
             }
             else
             {
-                // Fallback: create basic button
                 btnObj = new GameObject($"Btn_{items[i].name}", typeof(RectTransform), typeof(Button), typeof(Image));
                 btnObj.transform.SetParent(buttonContainer, false);
+
+                // Add text child
+                GameObject textObj = new GameObject("Text", typeof(RectTransform));
+                textObj.transform.SetParent(btnObj.transform, false);
+                TMP_Text tmp = textObj.AddComponent<TextMeshProUGUI>();
+                tmp.text = items[i].name;
+                tmp.fontSize = 14;
+                tmp.alignment = TextAlignmentOptions.Center;
+                tmp.color = Color.black;
+                RectTransform textRT = textObj.GetComponent<RectTransform>();
+                textRT.anchorMin = Vector2.zero;
+                textRT.anchorMax = Vector2.one;
+                textRT.offsetMin = textRT.offsetMax = Vector2.zero;
             }
 
-            // Set up text
             TMP_Text text = btnObj.GetComponentInChildren<TMP_Text>();
             if (text != null)
                 text.text = items[i].name;
 
-            // Set up icon if available
             Image icon = btnObj.transform.Find("Icon")?.GetComponent<Image>();
             if (icon != null && items[i].icon != null)
                 icon.sprite = items[i].icon;
@@ -96,15 +122,16 @@ public class SpawnMenuUI : MonoBehaviour
 
     private void OnToggleMenu(InputAction.CallbackContext ctx)
     {
+        if (menuPanel == null) return;
         bool opening = !menuPanel.activeSelf;
         menuPanel.SetActive(opening);
 
         if (GameManager.Instance != null)
         {
             if (opening)
-                GameManager.Instance.UnlockCursor();
+                GameManager.Instance.OpenMenu();
             else
-                GameManager.Instance.LockCursor();
+                GameManager.Instance.CloseMenu();
         }
     }
 }
