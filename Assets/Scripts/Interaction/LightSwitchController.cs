@@ -1,5 +1,12 @@
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
+/// <summary>
+/// Toggles lights on/off when selected with an XR controller.
+/// Automatically adds XRSimpleInteractable if missing.
+/// </summary>
+[RequireComponent(typeof(Collider))]
 public class LightSwitchController : MonoBehaviour
 {
     [Header("Lights to Control")]
@@ -21,17 +28,33 @@ public class LightSwitchController : MonoBehaviour
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.spatialBlend = 1f; // 3D sound in VR
+
+        // Auto-setup XR interactable
+        var interactable = GetComponent<XRSimpleInteractable>();
+        if (interactable == null)
+            interactable = gameObject.AddComponent<XRSimpleInteractable>();
+
+        interactable.selectEntered.AddListener(OnSelected);
+    }
+
+    private void OnDestroy()
+    {
+        var interactable = GetComponent<XRSimpleInteractable>();
+        if (interactable != null)
+            interactable.selectEntered.RemoveListener(OnSelected);
     }
 
     private void Start()
     {
-        // Start with lights off
         SetLights(false);
     }
 
-    /// <summary>
-    /// Called by the player interaction system when clicking the switch.
-    /// </summary>
+    private void OnSelected(SelectEnterEventArgs args)
+    {
+        ToggleSwitch();
+    }
+
     public void ToggleSwitch()
     {
         isOn = !isOn;
@@ -49,8 +72,6 @@ public class LightSwitchController : MonoBehaviour
         }
 
         if (switchRenderer != null)
-        {
             switchRenderer.material = on ? onMaterial : offMaterial;
-        }
     }
 }

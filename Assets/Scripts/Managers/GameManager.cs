@@ -26,30 +26,18 @@ public class GameManager : MonoBehaviour
         Instance = this;
     }
 
-    private void Start()
+    public void OpenMenu()
     {
-        LockCursor();
-    }
-
-    public void LockCursor()
-    {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-        IsMenuOpen = false;
-    }
-
-    public void UnlockCursor()
-    {
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
         IsMenuOpen = true;
+    }
+
+    public void CloseMenu()
+    {
+        IsMenuOpen = false;
     }
 
     public void ToggleMenu()
     {
-        if (IsMenuOpen)
-            LockCursor();
-        else
-            UnlockCursor();
+        IsMenuOpen = !IsMenuOpen;
     }
 }
