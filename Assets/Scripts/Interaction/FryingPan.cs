@@ -41,12 +41,13 @@ public class FryingPan : MonoBehaviour
     /// </summary>
     private void SetupGrabbable()
     {
-        // Rigidbody
+        // Rigidbody avec gravité (repose sur la surface)
         rb = GetComponent<Rigidbody>();
         if (rb == null)
             rb = gameObject.AddComponent<Rigidbody>();
         rb.mass = 1.5f;
-        rb.isKinematic = true; // Reste en place jusqu'au premier grab
+        rb.isKinematic = false;
+        rb.useGravity = true;
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
         // Collider physique englobant (non-trigger) — pour XR select + physique
@@ -85,9 +86,6 @@ public class FryingPan : MonoBehaviour
         grab.smoothRotationAmount = 12f;
         grab.tightenRotation = 0.5f;
         grab.attachEaseInTime = 0.1f;
-
-        // Au premier grab, désactiver le kinematic pour la physique
-        grab.selectEntered.AddListener(_ => { rb.isKinematic = false; });
     }
 
     /// <summary>
@@ -177,7 +175,8 @@ public class FryingPan : MonoBehaviour
     {
         var r = obj.AddComponent<Rigidbody>();
         r.mass = 1.5f;
-        r.isKinematic = true;
+        r.isKinematic = false;
+        r.useGravity = true;
         r.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
         var renderers = obj.GetComponentsInChildren<MeshRenderer>();
@@ -211,7 +210,5 @@ public class FryingPan : MonoBehaviour
         g.smoothRotationAmount = 12f;
         g.tightenRotation = 0.5f;
         g.attachEaseInTime = 0.1f;
-
-        g.selectEntered.AddListener(_ => { r.isKinematic = false; });
     }
 }
