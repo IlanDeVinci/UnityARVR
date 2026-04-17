@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Attachment;
 
 /// <summary>
 /// Configure un couteau comme objet grabbable avec far-grab blaster.
@@ -53,7 +54,7 @@ public class KnifeSetup : MonoBehaviour
         grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
         grab.throwOnDetach = true;
         grab.useDynamicAttach = true;
-        grab.farAttachMode = XRGrabInteractable.FarAttachMode.Far;
+        grab.farAttachMode = InteractableFarAttachMode.Near;
 
         // Smooth pour un rendu propre
         grab.smoothPosition = true;

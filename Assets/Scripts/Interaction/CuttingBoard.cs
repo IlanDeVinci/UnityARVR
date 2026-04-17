@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Attachment;
 
 /// <summary>
 /// Planche à découper avec 2 étapes :
@@ -191,7 +192,7 @@ public class CuttingBoard : MonoBehaviour
         grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
         grab.throwOnDetach = true;
         grab.useDynamicAttach = true;
-        grab.farAttachMode = XRGrabInteractable.FarAttachMode.Far;
+        grab.farAttachMode = InteractableFarAttachMode.Near;
 
         // Quand on le grab, le rendre non-kinematic pour la physique
         grab.selectEntered.AddListener(args => { rb.isKinematic = false; });
