@@ -30,12 +30,17 @@ public class CookingPlate : MonoBehaviour
 
     private void Start()
     {
+        var allRenderers = GetComponentsInChildren<MeshRenderer>();
+        Debug.Log($"[CookingPlate] {allRenderers.Length} MeshRenderers trouvés dans la hiérarchie");
+
         plateNode = FindPlateNode();
         if (plateNode == null)
         {
-            Debug.LogWarning($"[CookingPlate] Nœud {plateChildIndex} introuvable sur {name}");
+            Debug.LogWarning($"[CookingPlate] Nœud index {plateChildIndex} introuvable (seulement {allRenderers.Length} renderers)");
             return;
         }
+
+        Debug.Log($"[CookingPlate] Plaque détectée: {plateNode.name} à {plateNode.position}, bounds size {plateNode.GetComponent<MeshRenderer>()?.bounds.size}");
 
         CreateTriggerZone();
         CreateSmokeFX();
@@ -55,28 +60,36 @@ public class CookingPlate : MonoBehaviour
         var mr = plateNode.GetComponent<MeshRenderer>();
         Bounds b = mr != null ? mr.bounds : new Bounds(plateNode.position, Vector3.one * 0.5f);
 
+        // Trigger zone NON parentée au plan_de_travail (évite le scale problème)
         GameObject zone = new GameObject("PlateTrigger");
-        zone.transform.SetParent(transform, false);
         zone.transform.position = b.center + Vector3.up * detectionHeight * 0.5f;
-        zone.transform.rotation = transform.rotation;
+        zone.transform.rotation = Quaternion.identity;
+        zone.transform.localScale = Vector3.one;
 
         var col = zone.AddComponent<BoxCollider>();
         col.isTrigger = true;
-        col.size = new Vector3(b.size.x, detectionHeight, b.size.z);
+        // Taille mondiale : on ajoute une marge pour être sûr que la poêle entre dans la zone
+        col.size = new Vector3(
+            Mathf.Max(b.size.x, 0.4f) * 1.5f,
+            detectionHeight,
+            Mathf.Max(b.size.z, 0.4f) * 1.5f);
 
         var relay = zone.AddComponent<TriggerRelay>();
         relay.onEnter = OnObjectEnter;
         relay.onExit = OnObjectExit;
+
+        Debug.Log($"[CookingPlate] Trigger zone créé à {zone.transform.position}, taille {col.size}");
     }
 
     private void CreateSmokeFX()
     {
         smokeFX = new GameObject("SmokeFX");
-        smokeFX.transform.SetParent(transform, false);
+        // Pas de parenting pour éviter le scale
 
         var mr = plateNode.GetComponent<MeshRenderer>();
         Vector3 center = mr != null ? mr.bounds.center : plateNode.position;
         smokeFX.transform.position = center + Vector3.up * smokeHeightOffset;
+        smokeFX.transform.localScale = Vector3.one;
 
         var ps = smokeFX.AddComponent<ParticleSystem>();
         var main = ps.main;
@@ -131,11 +144,12 @@ public class CookingPlate : MonoBehaviour
     private void CreateTimerUI()
     {
         timerUI = new GameObject("CookingTimer");
-        timerUI.transform.SetParent(transform, false);
+        // Pas de parenting pour éviter le scale
 
         var mr = plateNode.GetComponent<MeshRenderer>();
         Vector3 center = mr != null ? mr.bounds.center : plateNode.position;
         timerUI.transform.position = center + Vector3.up * timerHeightOffset;
+        timerUI.transform.localScale = Vector3.one;
 
         timerText = timerUI.AddComponent<TextMeshPro>();
         timerText.text = "30";
@@ -152,6 +166,7 @@ public class CookingPlate : MonoBehaviour
 
     private void OnObjectEnter(Collider other)
     {
+        Debug.Log($"[CookingPlate] Trigger enter: {other.gameObject.name} (parent: {other.transform.parent?.name}) isPan={IsPan(other)}");
         if (!IsPan(other)) return;
 
         GameObject pan = other.GetComponent<FryingPan>() != null
