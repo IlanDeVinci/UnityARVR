@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7, type: 2}
+  m_SkyboxMaterial: {fileID: 2100000, guid: bb22cc33dd44ee55ff66778899001122, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -1275,8 +1275,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  pikachuCookedPrefab: {fileID: -8037938140082288066, guid: 3d08a494c05a3dc44afbd785ee38f5d1, type: 3}
   detectionHeight: 0.5
+  cookedScale: 0.2
   cookSound: {fileID: 8300000, guid: 6a239391aab44f945ad58cc57e5645ce, type: 3}
 --- !u!1 &544770859 stripped
 GameObject:
