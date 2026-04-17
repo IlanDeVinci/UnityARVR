@@ -6,10 +6,8 @@ using UnityEngine.XR.Interaction.Toolkit.UI;
 /// <summary>
 /// Menu principal VR affiché au lancement.
 /// Un Canvas World Space avec titre + bouton Play.
-/// Quand on appuie sur Play, le menu disparaît et le jeu se lance.
-///
-/// Le script gèle le jeu (Time.timeScale = 0) au démarrage
-/// et le relance quand on clique Play.
+/// Quand on appuie sur Play, le menu disparaît.
+/// Le jeu reste actif pendant l'affichage du menu (le joueur peut regarder autour).
 /// </summary>
 public class MainMenuUI : MonoBehaviour
 {
@@ -21,8 +19,8 @@ public class MainMenuUI : MonoBehaviour
 
     private void Awake()
     {
-        // Geler le jeu (les Pikachus, la physique, etc.)
-        Time.timeScale = 0f;
+        // Sécurité : s'assurer que le temps tourne (au cas où il aurait été figé)
+        Time.timeScale = 1f;
 
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
@@ -161,9 +159,6 @@ public class MainMenuUI : MonoBehaviour
     {
         if (clickSound != null)
             audioSource.PlayOneShot(clickSound);
-
-        // Relancer le jeu
-        Time.timeScale = 1f;
 
         // Détruire le menu
         Destroy(gameObject);
