@@ -85,9 +85,6 @@ public class PikachuWander : MonoBehaviour
         StopAllCoroutines();
         isWaiting = false;
 
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-
         if (animator != null)
         {
             animator.SetFloat("Speed", 0f);
@@ -98,6 +95,9 @@ public class PikachuWander : MonoBehaviour
     private void OnReleased(SelectExitEventArgs args)
     {
         isGrabbed = false;
+
+        // Réactiver la gravité pour la chute / le lancer
+        rb.useGravity = true;
 
         if (animator != null)
             animator.enabled = true;
