@@ -1,7 +1,9 @@
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using System.Collections;
 
-[RequireComponent(typeof(MeshFilter))]
+[RequireComponent(typeof(Collider))]
 public class SlidingDoorController : MonoBehaviour
 {
     [Header("Settings")]
@@ -28,10 +30,28 @@ public class SlidingDoorController : MonoBehaviour
             // Fallback to your provided dimensions if no mesh is found
             objectDimensions = new Vector3(3f, 4f, 0.5f);
         }
+
+        // Auto-setup XR interactable for VR controller support
+        var interactable = GetComponent<XRSimpleInteractable>();
+        if (interactable == null)
+            interactable = gameObject.AddComponent<XRSimpleInteractable>();
+
+        interactable.selectEntered.AddListener(OnSelected);
     }
 
-    // Triggered when the object's Collider is clicked
-    public void OnMouseDown()
+    void OnDestroy()
+    {
+        var interactable = GetComponent<XRSimpleInteractable>();
+        if (interactable != null)
+            interactable.selectEntered.RemoveListener(OnSelected);
+    }
+
+    private void OnSelected(SelectEnterEventArgs args)
+    {
+        ToggleDoor();
+    }
+
+    public void ToggleDoor()
     {
         // Handle interruption: stop current move before starting a new one
         if (currentRoutine != null)

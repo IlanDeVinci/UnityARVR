@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using System.Collections;
 
 public class PikachuWander : MonoBehaviour
@@ -38,6 +40,8 @@ public class PikachuWander : MonoBehaviour
     private Transform player;
     private AudioSource audioSource;
     private bool hasPlayedFleeSound = false;
+    private XRGrabInteractable grabInteractable;
+    private bool isGrabbed = false;
 
     // Force de collision pour sortir des murs
     private Vector3 collisionPush = Vector3.zero;
@@ -51,10 +55,63 @@ public class PikachuWander : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         animator = GetComponent<Animator>();
         audioSource = GetComponent<AudioSource>();
+        grabInteractable = GetComponent<XRGrabInteractable>();
         rb.freezeRotation = true;
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
+        if (grabInteractable != null)
+        {
+            grabInteractable.selectEntered.AddListener(OnGrabbed);
+            grabInteractable.selectExited.AddListener(OnReleased);
+        }
+
         FindPlayer();
+        centerPoint = transform.position;
+        PickNewTarget();
+    }
+
+    void OnDestroy()
+    {
+        if (grabInteractable != null)
+        {
+            grabInteractable.selectEntered.RemoveListener(OnGrabbed);
+            grabInteractable.selectExited.RemoveListener(OnReleased);
+        }
+    }
+
+    private void OnGrabbed(SelectEnterEventArgs args)
+    {
+        isGrabbed = true;
+        StopAllCoroutines();
+        isWaiting = false;
+
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+
+        if (animator != null)
+        {
+            animator.SetFloat("Speed", 0f);
+            animator.enabled = false;
+        }
+    }
+
+    private void OnReleased(SelectExitEventArgs args)
+    {
+        isGrabbed = false;
+
+        if (animator != null)
+            animator.enabled = true;
+
+        StartCoroutine(ResumeAfterLanding());
+    }
+
+    private IEnumerator ResumeAfterLanding()
+    {
+        yield return new WaitForSeconds(0.1f);
+
+        while (!IsGrounded())
+            yield return new WaitForFixedUpdate();
+
         centerPoint = transform.position;
         PickNewTarget();
     }
@@ -83,7 +140,11 @@ public class PikachuWander : MonoBehaviour
 
     void FixedUpdate()
     {
-        // Si pas au sol, ne rien faire (en l'air = attrapé ou en train de tomber)
+        // Si attrapé par le joueur, ne rien faire
+        if (isGrabbed)
+            return;
+
+        // Si pas au sol, ne rien faire (en l'air ou en train de tomber)
         if (!IsGrounded())
         {
             rb.linearVelocity = new Vector3(0, rb.linearVelocity.y, 0);
