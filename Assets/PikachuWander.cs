@@ -29,6 +29,8 @@ public class PikachuWander : MonoBehaviour
 
     [Header("Réaction")]
     public AudioClip fleeSound;
+    public AudioClip grabSound;
+    public AudioClip throwSound;
 
     private enum State { Wandering, Fleeing }
     private State currentState = State.Wandering;
@@ -86,6 +88,9 @@ public class PikachuWander : MonoBehaviour
         StopAllCoroutines();
         isWaiting = false;
 
+        if (grabSound != null && audioSource != null)
+            audioSource.PlayOneShot(grabSound);
+
         if (animator != null)
         {
             animator.SetFloat("Speed", 0f);
@@ -99,6 +104,9 @@ public class PikachuWander : MonoBehaviour
         isThrown = true;
 
         rb.useGravity = true;
+
+        if (throwSound != null && audioSource != null)
+            audioSource.PlayOneShot(throwSound);
 
         StartCoroutine(ResumeAfterLanding());
     }
