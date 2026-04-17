@@ -469,6 +469,26 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 900000010}
   m_SourcePrefab: {fileID: -8037938140082288066, guid: 23bdd556504d7a64bb3d169d308b5117, type: 3}
+--- !u!1 &900000009 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -8148156210950934553, guid: 23bdd556504d7a64bb3d169d308b5117, type: 3}
+  m_PrefabInstance: {fileID: 107885040}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &900000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900000009}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7fbe67083f70b824ca1975466f77747f, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  lights: []
+  startsOn: 1
+  switchSound: {fileID: 8300000, guid: 53a6cf39af20bdb4f879e28d00648bd1, type: 3}
 --- !u!64 &168820223
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -2855,7 +2875,7 @@ MonoBehaviour:
   spawnAction: {fileID: -6601067469686308098, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   nextItemAction: {fileID: 7476244043514120974, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   prevItemAction: {fileID: 2411907206095950430, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  spawnSound: {fileID: 0}
+  spawnSound: {fileID: 8300000, guid: 9e050a85b14ec614688dda79012a6243, type: 3}
 --- !u!1 &1101443178 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: -642610861636117217, guid: add1e6b0b484e6243a5da3040db08708, type: 3}
@@ -3816,6 +3836,9 @@ MonoBehaviour:
   pikachuPrefab: {fileID: 280271371}
   count: 20
   spawnRadius: 8
+  fleeSound: {fileID: 8300000, guid: 7cd811b6457cbe4459cec84384f0ea2b, type: 3}
+  grabSound: {fileID: 8300000, guid: 9f8e13376926ebf4a9a2c0190138a5d1, type: 3}
+  throwSound: {fileID: 8300000, guid: ff5389c6bd490d146a31f53b590a36a0, type: 3}
 --- !u!4 &1467639819
 Transform:
   m_ObjectHideFlags: 0
@@ -5638,10 +5661,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e7fd892b6a5fa9a40b987ca7f9bdbfc4, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::SlidingDoorController
   speed: 3
   isOpen: 0
+  openSound: {fileID: 8300000, guid: 74e566193eba41942b5e30945a88b7f9, type: 3}
+  closeSound: {fileID: 8300000, guid: 484c4eb2ab9abd647beebe0a4daa99a0, type: 3}
 --- !u!33 &1815158159
 MeshFilter:
   m_ObjectHideFlags: 0

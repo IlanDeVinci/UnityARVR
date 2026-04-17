@@ -28,8 +28,13 @@ public class GrabbablePlaceable : MonoBehaviour
     [SerializeField] private float maxDropDistance = 5f;
     [SerializeField] private float returnSpeed = 4f;
 
+    [Header("Audio")]
+    [SerializeField] private AudioClip grabSound;
+    [SerializeField] private AudioClip dropSound;
+
     private XRGrabInteractable _grab;
     private Rigidbody _rb;
+    private AudioSource _audio;
     private Vector3 _originPos;
     private Quaternion _originRot;
     private bool _isGrabbed;
@@ -38,6 +43,10 @@ public class GrabbablePlaceable : MonoBehaviour
     {
         _grab = GetComponent<XRGrabInteractable>();
         _rb   = GetComponent<Rigidbody>();
+        _audio = GetComponent<AudioSource>();
+        if (_audio == null)
+            _audio = gameObject.AddComponent<AudioSource>();
+        _audio.spatialBlend = 1f;
 
         _grab.movementType = movementType;
         _grab.throwOnDetach = throwOnRelease;
@@ -58,11 +67,16 @@ public class GrabbablePlaceable : MonoBehaviour
         _grab.selectExited.RemoveListener(OnReleased);
     }
 
-    private void OnGrabbed(SelectEnterEventArgs args) => _isGrabbed = true;
+    private void OnGrabbed(SelectEnterEventArgs args)
+    {
+        _isGrabbed = true;
+        if (grabSound != null) _audio.PlayOneShot(grabSound);
+    }
 
     private void OnReleased(SelectExitEventArgs args)
     {
         _isGrabbed = false;
+        if (dropSound != null) _audio.PlayOneShot(dropSound);
         if (returnIfDropped)
             StartCoroutine(CheckAndReturn());
     }

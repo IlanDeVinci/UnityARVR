@@ -9,6 +9,11 @@ public class SlidingDoorController : MonoBehaviour
     public float speed = 3f;
     public bool isOpen = false;
 
+    [Header("Audio")]
+    [SerializeField] private AudioClip openSound;
+    [SerializeField] private AudioClip closeSound;
+
+    private AudioSource audioSource;
     private Vector3 initialPosition;
     private Vector3 objectDimensions;
     private Coroutine currentRoutine;
@@ -36,6 +41,11 @@ public class SlidingDoorController : MonoBehaviour
             interactable = gameObject.AddComponent<XRSimpleInteractable>();
 
         interactable.selectEntered.AddListener(OnSelected);
+
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.spatialBlend = 1f;
     }
 
     void OnDestroy()
@@ -56,6 +66,11 @@ public class SlidingDoorController : MonoBehaviour
         StopAllCoroutines();
 
         isOpen = !isOpen;
+
+        AudioClip clip = isOpen ? openSound : closeSound;
+        if (clip != null && audioSource != null)
+            audioSource.PlayOneShot(clip);
+
         currentRoutine = StartCoroutine(AnimateDoor());
     }
 
