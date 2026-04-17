@@ -6,6 +6,7 @@ public class SceneResetManager : MonoBehaviour
 {
     [Header("Input")]
     [SerializeField] private InputActionReference resetAction;
+    [SerializeField] private Transform playerTransform;
 
     [Header("Settings")]
     [SerializeField] private bool requireDoublePress = true;
@@ -23,6 +24,14 @@ public class SceneResetManager : MonoBehaviour
     {
         resetAction.action.performed -= OnReset;
         resetAction.action.Disable();
+    }
+
+    private void Update()
+    {
+        if (playerTransform != null && playerTransform.position.y < -10f)
+        {
+            ResetScene();
+        }
     }
 
     private void OnReset(InputAction.CallbackContext ctx)
