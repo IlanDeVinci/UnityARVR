@@ -124,6 +124,48 @@ public class SpawnMenuUI : MonoBehaviour
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -72f), new Vector2(700f, 28f),
             "Sélectionne un objet dans la liste", 18, new Color(0.75f, 0.75f, 0.75f));
         selectedLabel = labelObj.GetComponent<TMP_Text>();
+
+        AddSensorPanel();
+    }
+
+    /// <summary>
+    /// Ajoute un panneau avec les données capteur (Chain API MIT) en haut à droite.
+    /// </summary>
+    private void AddSensorPanel()
+    {
+        GameObject panel = new GameObject("SensorPanel",
+            typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        panel.transform.SetParent(menuPanel.transform, false);
+
+        RectTransform panelRT = panel.GetComponent<RectTransform>();
+        panelRT.anchorMin = new Vector2(1f, 1f);
+        panelRT.anchorMax = new Vector2(1f, 1f);
+        panelRT.pivot = new Vector2(1f, 1f);
+        panelRT.anchoredPosition = new Vector2(-15f, -15f);
+        panelRT.sizeDelta = new Vector2(240f, 90f);
+
+        var img = panel.GetComponent<UnityEngine.UI.Image>();
+        img.color = new Color(0.1f, 0.08f, 0.18f, 0.85f);
+
+        // Texte dans le panel
+        GameObject txtObj = new GameObject("SensorText", typeof(RectTransform));
+        txtObj.transform.SetParent(panel.transform, false);
+        RectTransform txtRT = txtObj.GetComponent<RectTransform>();
+        txtRT.anchorMin = Vector2.zero;
+        txtRT.anchorMax = Vector2.one;
+        txtRT.offsetMin = new Vector2(8, 6);
+        txtRT.offsetMax = new Vector2(-8, -6);
+
+        var tmp = txtObj.AddComponent<TextMeshProUGUI>();
+        tmp.text = "Chargement...";
+        tmp.fontSize = 14;
+        tmp.alignment = TextAlignmentOptions.TopLeft;
+        tmp.color = Color.white;
+        tmp.enableWordWrapping = true;
+
+        // Attacher le fetcher et lier le texte
+        var fetcher = panel.AddComponent<SensorDataFetcher>();
+        fetcher.displayText = tmp;
     }
 
     private void AddPlaceButton()
