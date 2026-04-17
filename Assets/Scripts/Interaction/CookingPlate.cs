@@ -1,24 +1,32 @@
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Attachment;
+using TMPro;
+using System.Collections;
 
 /// <summary>
 /// Plaque de cuisson : quand une poêle (FryingPan ou pikachu_poele) est posée
-/// au-dessus du nœud cible (par défaut index 6), affiche un FX de fumée.
+/// au-dessus du nœud cible, affiche un FX de fumée + un chronomètre de 30s.
+/// À zéro, affiche "C'EST CUIT !" et remplace la poêle par poele_steak.
 /// </summary>
 public class CookingPlate : MonoBehaviour
 {
     [Header("Plaque")]
-    [Tooltip("Index du child mesh qui correspond à la plaque (nœud 6 par défaut).")]
-    [SerializeField] private int plateChildIndex = 6;
-
-    [Tooltip("Hauteur de la zone de détection au-dessus de la plaque.")]
+    [Tooltip("Index du child mesh qui correspond à la plaque.")]
+    [SerializeField] private int plateChildIndex = 17;
     [SerializeField] private float detectionHeight = 0.5f;
-
-    [Tooltip("Hauteur où la fumée apparaît au-dessus de la plaque.")]
     [SerializeField] private float smokeHeightOffset = 0.3f;
+
+    [Header("Cuisson")]
+    [SerializeField] private float cookDuration = 30f;
+    [SerializeField] private float timerHeightOffset = 0.6f;
 
     private Transform plateNode;
     private GameObject smokeFX;
-    private int objectsOnPlate = 0;
+    private GameObject timerUI;
+    private TextMeshPro timerText;
+    private GameObject panOnPlate;
+    private Coroutine cookingRoutine;
 
     private void Start()
     {
@@ -29,16 +37,13 @@ public class CookingPlate : MonoBehaviour
             return;
         }
 
-        // Ajouter un trigger au-dessus de la plaque
         CreateTriggerZone();
-
-        // Créer le système de fumée (désactivé au départ)
         CreateSmokeFX();
+        CreateTimerUI();
     }
 
     private Transform FindPlateNode()
     {
-        // Chercher le Nth mesh renderer en descente hiérarchique
         var renderers = GetComponentsInChildren<MeshRenderer>();
         if (plateChildIndex >= 0 && plateChildIndex < renderers.Length)
             return renderers[plateChildIndex].transform;
@@ -59,7 +64,6 @@ public class CookingPlate : MonoBehaviour
         col.isTrigger = true;
         col.size = new Vector3(b.size.x, detectionHeight, b.size.z);
 
-        // Un relais qui transmet les events à ce script
         var relay = zone.AddComponent<TriggerRelay>();
         relay.onEnter = OnObjectEnter;
         relay.onExit = OnObjectExit;
@@ -84,7 +88,7 @@ public class CookingPlate : MonoBehaviour
         main.startColor = new Color(0.8f, 0.8f, 0.8f, 0.4f);
         main.maxParticles = 50;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.gravityModifier = -0.05f; // Monte légèrement
+        main.gravityModifier = -0.05f;
 
         var emission = ps.emission;
         emission.rateOverTime = 15f;
@@ -117,32 +121,212 @@ public class CookingPlate : MonoBehaviour
             });
         colorOverLife.color = grad;
 
-        // Renderer avec un material de particules par défaut
         var renderer = smokeFX.GetComponent<ParticleSystemRenderer>();
-        renderer.material = new Material(Shader.Find("Particles/Standard Unlit"));
-        if (renderer.material.shader == null || renderer.material.shader.name == "Hidden/InternalErrorShader")
-            renderer.material = new Material(Shader.Find("Sprites/Default"));
+        renderer.material = new Material(Shader.Find("Sprites/Default"));
         renderer.material.color = new Color(0.8f, 0.8f, 0.8f, 0.5f);
 
         ps.Stop();
     }
 
+    private void CreateTimerUI()
+    {
+        timerUI = new GameObject("CookingTimer");
+        timerUI.transform.SetParent(transform, false);
+
+        var mr = plateNode.GetComponent<MeshRenderer>();
+        Vector3 center = mr != null ? mr.bounds.center : plateNode.position;
+        timerUI.transform.position = center + Vector3.up * timerHeightOffset;
+
+        timerText = timerUI.AddComponent<TextMeshPro>();
+        timerText.text = "30";
+        timerText.fontSize = 2;
+        timerText.alignment = TextAlignmentOptions.Center;
+        timerText.color = new Color(1f, 0.9f, 0.3f);
+        timerText.fontStyle = FontStyles.Bold;
+
+        // Orient vers la caméra
+        timerUI.AddComponent<FaceCamera>();
+
+        timerUI.SetActive(false);
+    }
+
     private void OnObjectEnter(Collider other)
     {
         if (!IsPan(other)) return;
-        objectsOnPlate++;
-        if (objectsOnPlate == 1 && smokeFX != null)
+
+        GameObject pan = other.GetComponent<FryingPan>() != null
+            ? other.gameObject
+            : other.GetComponentInParent<FryingPan>()?.gameObject;
+
+        if (pan == null)
+        {
+            // Fallback : chercher via le nom
+            pan = other.gameObject;
+            if (other.transform.parent != null && other.transform.parent.name.ToLower().Contains("poele"))
+                pan = other.transform.parent.gameObject;
+        }
+
+        if (panOnPlate != null) return; // Déjà en cuisson
+
+        panOnPlate = pan;
+
+        // Démarrer la fumée
+        if (smokeFX != null)
         {
             var ps = smokeFX.GetComponent<ParticleSystem>();
             if (ps != null) ps.Play();
         }
+
+        // Démarrer le chronomètre
+        if (cookingRoutine != null) StopCoroutine(cookingRoutine);
+        cookingRoutine = StartCoroutine(CookCountdown());
     }
 
     private void OnObjectExit(Collider other)
     {
         if (!IsPan(other)) return;
-        objectsOnPlate = Mathf.Max(0, objectsOnPlate - 1);
-        if (objectsOnPlate == 0 && smokeFX != null)
+
+        // Vérifier que c'est bien la poêle qu'on suit
+        GameObject pan = other.gameObject;
+        if (other.transform.parent != null && other.transform.parent == panOnPlate?.transform)
+            pan = other.transform.parent.gameObject;
+        if (other.GetComponentInParent<FryingPan>()?.gameObject == panOnPlate)
+            pan = panOnPlate;
+
+        if (panOnPlate == null || pan != panOnPlate) return;
+
+        StopCooking();
+    }
+
+    private IEnumerator CookCountdown()
+    {
+        float remaining = cookDuration;
+        timerUI.SetActive(true);
+
+        while (remaining > 0f)
+        {
+            if (panOnPlate == null)
+            {
+                StopCooking();
+                yield break;
+            }
+
+            timerText.text = Mathf.CeilToInt(remaining).ToString();
+
+            // Couleur qui passe au rouge en fin de cuisson
+            float t = 1f - (remaining / cookDuration);
+            timerText.color = Color.Lerp(new Color(1f, 0.9f, 0.3f), new Color(1f, 0.3f, 0.1f), t);
+
+            remaining -= Time.deltaTime;
+            yield return null;
+        }
+
+        // Cuisson terminée
+        yield return ShowCuitThenReplace();
+    }
+
+    private IEnumerator ShowCuitThenReplace()
+    {
+        // Afficher "C'EST CUIT !"
+        timerText.text = "C'EST CUIT !";
+        timerText.color = new Color(0.3f, 1f, 0.3f);
+        timerText.fontSize = 1.2f;
+
+        yield return new WaitForSeconds(2.5f);
+
+        // Remplacer la poêle par poele_steak
+        if (panOnPlate != null)
+        {
+            ReplacePan(panOnPlate);
+            panOnPlate = null;
+        }
+
+        // Nettoyer
+        timerUI.SetActive(false);
+        timerText.fontSize = 2;
+
+        if (smokeFX != null)
+        {
+            var ps = smokeFX.GetComponent<ParticleSystem>();
+            if (ps != null) ps.Stop();
+        }
+    }
+
+    private void ReplacePan(GameObject oldPan)
+    {
+        var steakPrefab = Resources.Load<GameObject>("poele_steak");
+        if (steakPrefab == null)
+        {
+            Debug.LogError("[CookingPlate] poele_steak introuvable dans Resources/");
+            return;
+        }
+
+        Vector3 pos = oldPan.transform.position;
+        Quaternion rot = oldPan.transform.rotation;
+        Vector3 scale = oldPan.transform.localScale;
+
+        Destroy(oldPan);
+
+        GameObject steak = Instantiate(steakPrefab, pos, rot);
+        steak.name = "Poele_Steak";
+        steak.transform.localScale = scale;
+
+        // Rendre grabbable
+        MakeGrabbable(steak);
+    }
+
+    private static void MakeGrabbable(GameObject obj)
+    {
+        var rb = obj.AddComponent<Rigidbody>();
+        rb.mass = 1.5f;
+        rb.useGravity = true;
+        rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+
+        var renderers = obj.GetComponentsInChildren<MeshRenderer>();
+        if (renderers.Length > 0)
+        {
+            Bounds combined = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+                combined.Encapsulate(renderers[i].bounds);
+
+            var box = obj.AddComponent<BoxCollider>();
+            box.center = obj.transform.InverseTransformPoint(combined.center);
+            box.size = new Vector3(
+                combined.size.x / obj.transform.lossyScale.x,
+                combined.size.y / obj.transform.lossyScale.y,
+                combined.size.z / obj.transform.lossyScale.z);
+        }
+        else
+        {
+            obj.AddComponent<BoxCollider>();
+        }
+
+        var g = obj.AddComponent<XRGrabInteractable>();
+        g.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+        g.throwOnDetach = true;
+        g.useDynamicAttach = true;
+        g.farAttachMode = InteractableFarAttachMode.Near;
+        g.smoothPosition = true;
+        g.smoothPositionAmount = 12f;
+        g.tightenPosition = 0.5f;
+        g.smoothRotation = true;
+        g.smoothRotationAmount = 12f;
+        g.tightenRotation = 0.5f;
+        g.attachEaseInTime = 0.1f;
+    }
+
+    private void StopCooking()
+    {
+        if (cookingRoutine != null)
+        {
+            StopCoroutine(cookingRoutine);
+            cookingRoutine = null;
+        }
+        panOnPlate = null;
+
+        if (timerUI != null) timerUI.SetActive(false);
+
+        if (smokeFX != null)
         {
             var ps = smokeFX.GetComponent<ParticleSystem>();
             if (ps != null) ps.Stop();
@@ -176,4 +360,27 @@ public class TriggerRelay : MonoBehaviour
 
     private void OnTriggerEnter(Collider other) => onEnter?.Invoke(other);
     private void OnTriggerExit(Collider other) => onExit?.Invoke(other);
+}
+
+/// <summary>
+/// Fait toujours face à la caméra principale (billboard).
+/// </summary>
+public class FaceCamera : MonoBehaviour
+{
+    private Camera cam;
+
+    private void Start()
+    {
+        cam = Camera.main;
+    }
+
+    private void LateUpdate()
+    {
+        if (cam == null) cam = Camera.main;
+        if (cam == null) return;
+
+        transform.rotation = Quaternion.LookRotation(
+            transform.position - cam.transform.position,
+            Vector3.up);
+    }
 }

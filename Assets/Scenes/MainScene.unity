@@ -2251,6 +2251,8 @@ MonoBehaviour:
   plateChildIndex: 17
   detectionHeight: 0.5
   smokeHeightOffset: 0.3
+  cookDuration: 30
+  timerHeightOffset: 0.6
 --- !u!1 &904952924 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 6275799118658162920, guid: add1e6b0b484e6243a5da3040db08708, type: 3}
