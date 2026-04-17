@@ -23,10 +23,10 @@ public class CuttingBoard : MonoBehaviour
             audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.spatialBlend = 0.5f;
 
-        // Charger le modèle depuis Resources (pas de cast problématique)
-        cookedPrefab = Resources.Load<GameObject>("pikachu_poele_premium");
+        // Charger le modèle depuis Resources
+        cookedPrefab = Resources.Load<GameObject>("pikachu_couche");
         if (cookedPrefab == null)
-            Debug.LogError("[CuttingBoard] pikachu_poele_premium introuvable dans Resources/");
+            Debug.LogError("[CuttingBoard] pikachu_couche introuvable dans Resources/");
 
         // Créer une zone de détection au-dessus de la planche
         var triggerZone = gameObject.AddComponent<BoxCollider>();
