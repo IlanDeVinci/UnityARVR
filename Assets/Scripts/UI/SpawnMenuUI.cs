@@ -5,9 +5,8 @@ using UnityEngine.XR.Interaction.Toolkit.UI;
 using TMPro;
 
 /// <summary>
-/// Menu de spawn VR amélioré : grid scrollable avec tous les objets disponibles.
-/// Le menu se construit automatiquement au Start() à partir des objets
-/// chargés dans ObjectSpawner.
+/// Menu de spawn VR avec previews 3D de chaque modèle.
+/// Flow : clic sur un item → sélection (highlight) → clic sur PLACER → spawn.
 /// </summary>
 public class SpawnMenuUI : MonoBehaviour
 {
@@ -20,17 +19,19 @@ public class SpawnMenuUI : MonoBehaviour
 
     [Header("Grid")]
     [SerializeField] private int columns = 4;
-    [SerializeField] private float cellWidth = 140f;
-    [SerializeField] private float cellHeight = 100f;
-    [SerializeField] private float spacing = 12f;
+    [SerializeField] private float cellSize = 150f;
+    [SerializeField] private float spacing = 10f;
 
     [Header("Colors")]
-    [SerializeField] private Color normalColor = new Color(0.2f, 0.2f, 0.3f, 0.9f);
-    [SerializeField] private Color selectedColor = new Color(0.9f, 0.7f, 0.2f, 1f);
-    [SerializeField] private Color hoverColor = new Color(0.3f, 0.5f, 0.7f, 0.95f);
+    [SerializeField] private Color normalColor = new Color(0.15f, 0.15f, 0.22f, 0.95f);
+    [SerializeField] private Color hoverColor = new Color(0.3f, 0.5f, 0.7f, 1f);
+    [SerializeField] private Color selectedColor = new Color(0.95f, 0.65f, 0.15f, 1f);
 
     private Button[] buttons;
+    private Image[] buttonBackgrounds;
     private TMP_Text selectedLabel;
+    private Button placeButton;
+    private int selectedIndex = -1;
 
     private void OnEnable()
     {
@@ -60,18 +61,12 @@ public class SpawnMenuUI : MonoBehaviour
         BuildGrid();
     }
 
-    /// <summary>
-    /// Construit un menu complet depuis zéro si aucun n'est assigné.
-    /// </summary>
     private void BuildMenuFromScratch()
     {
-        // Configuration du Canvas
         var canvas = GetComponent<Canvas>();
-        if (canvas == null)
-            canvas = gameObject.AddComponent<Canvas>();
+        if (canvas == null) canvas = gameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
-        if (canvas.worldCamera == null)
-            canvas.worldCamera = Camera.main;
+        if (canvas.worldCamera == null) canvas.worldCamera = Camera.main;
 
         if (GetComponent<CanvasScaler>() == null)
             gameObject.AddComponent<CanvasScaler>();
@@ -84,32 +79,55 @@ public class SpawnMenuUI : MonoBehaviour
 
         RectTransform rt = GetComponent<RectTransform>();
         if (rt == null) rt = gameObject.AddComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(900f, 700f);
+        rt.sizeDelta = new Vector2(900f, 720f);
 
-        // Panel
+        // Panel de fond
         menuPanel = new GameObject("Panel", typeof(RectTransform), typeof(Image));
         menuPanel.transform.SetParent(transform, false);
         RectTransform panelRT = menuPanel.GetComponent<RectTransform>();
         panelRT.anchorMin = Vector2.zero;
         panelRT.anchorMax = Vector2.one;
         panelRT.offsetMin = panelRT.offsetMax = Vector2.zero;
-        menuPanel.GetComponent<Image>().color = new Color(0.08f, 0.05f, 0.12f, 0.95f);
+        menuPanel.GetComponent<Image>().color = new Color(0.06f, 0.04f, 0.1f, 0.97f);
 
         // Titre
         CreateText("Title", menuPanel.transform,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(800f, 45f),
-            "MENU - Restaurant Pokemon", 32, new Color(1f, 0.85f, 0.3f));
+            "CHOISIR UN OBJET", 30, new Color(1f, 0.85f, 0.3f));
 
-        // Label de l'objet sélectionné
+        // Label sélection
         var labelObj = CreateText("SelectedLabel", menuPanel.transform,
-            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -75f), new Vector2(700f, 30f),
-            "Aucun objet sélectionné", 20, new Color(0.8f, 0.8f, 0.8f));
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -72f), new Vector2(700f, 28f),
+            "Sélectionne un objet dans la liste", 18, new Color(0.75f, 0.75f, 0.75f));
         selectedLabel = labelObj.GetComponent<TMP_Text>();
 
-        // Instructions bas de page
-        CreateText("Hint", menuPanel.transform,
-            new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(800f, 30f),
-            "Cliquez sur un objet pour le spawner devant vous", 16, new Color(0.55f, 0.55f, 0.55f));
+        // Bouton PLACER
+        GameObject placeObj = new GameObject("PlaceButton",
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        placeObj.transform.SetParent(menuPanel.transform, false);
+        RectTransform placeRT = placeObj.GetComponent<RectTransform>();
+        placeRT.anchorMin = new Vector2(0.5f, 0f);
+        placeRT.anchorMax = new Vector2(0.5f, 0f);
+        placeRT.anchoredPosition = new Vector2(0f, 45f);
+        placeRT.sizeDelta = new Vector2(260f, 60f);
+        placeObj.GetComponent<Image>().color = new Color(0.3f, 0.3f, 0.3f);
+
+        placeButton = placeObj.GetComponent<Button>();
+        placeButton.interactable = false;
+        placeButton.onClick.AddListener(OnPlaceClicked);
+
+        GameObject placeTxtObj = new GameObject("Text", typeof(RectTransform));
+        placeTxtObj.transform.SetParent(placeObj.transform, false);
+        RectTransform placeTxtRT = placeTxtObj.GetComponent<RectTransform>();
+        placeTxtRT.anchorMin = Vector2.zero;
+        placeTxtRT.anchorMax = Vector2.one;
+        placeTxtRT.offsetMin = placeTxtRT.offsetMax = Vector2.zero;
+        var placeTxt = placeTxtObj.AddComponent<TextMeshProUGUI>();
+        placeTxt.text = "PLACER";
+        placeTxt.fontSize = 28;
+        placeTxt.alignment = TextAlignmentOptions.Center;
+        placeTxt.color = Color.white;
+        placeTxt.fontStyle = FontStyles.Bold;
 
         menuPanel.SetActive(false);
     }
@@ -123,21 +141,22 @@ public class SpawnMenuUI : MonoBehaviour
         SpawnableItem[] items = objectSpawner.SpawnableItems;
         if (items == null || items.Length == 0) return;
 
-        // Container scrollable
-        GameObject scroll = new GameObject("Scroll", typeof(RectTransform), typeof(ScrollRect), typeof(Image));
+        // Scroll
+        GameObject scroll = new GameObject("Scroll",
+            typeof(RectTransform), typeof(ScrollRect), typeof(Image));
         scroll.transform.SetParent(menuPanel.transform, false);
         RectTransform scrollRT = scroll.GetComponent<RectTransform>();
-        scrollRT.anchorMin = new Vector2(0.05f, 0.1f);
-        scrollRT.anchorMax = new Vector2(0.95f, 0.82f);
+        scrollRT.anchorMin = new Vector2(0.04f, 0.15f);
+        scrollRT.anchorMax = new Vector2(0.96f, 0.85f);
         scrollRT.offsetMin = scrollRT.offsetMax = Vector2.zero;
-        scroll.GetComponent<Image>().color = new Color(0.05f, 0.03f, 0.08f, 0.7f);
+        scroll.GetComponent<Image>().color = new Color(0.03f, 0.02f, 0.06f, 0.8f);
 
         var scrollRect = scroll.GetComponent<ScrollRect>();
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
 
-        // Viewport (masque)
-        GameObject viewport = new GameObject("Viewport", typeof(RectTransform), typeof(Mask), typeof(Image));
+        GameObject viewport = new GameObject("Viewport",
+            typeof(RectTransform), typeof(Mask), typeof(Image));
         viewport.transform.SetParent(scroll.transform, false);
         RectTransform vpRT = viewport.GetComponent<RectTransform>();
         vpRT.anchorMin = Vector2.zero;
@@ -147,8 +166,8 @@ public class SpawnMenuUI : MonoBehaviour
         viewport.GetComponent<Mask>().showMaskGraphic = false;
         scrollRect.viewport = vpRT;
 
-        // Content
-        GameObject content = new GameObject("Content", typeof(RectTransform), typeof(GridLayoutGroup), typeof(ContentSizeFitter));
+        GameObject content = new GameObject("Content",
+            typeof(RectTransform), typeof(GridLayoutGroup), typeof(ContentSizeFitter));
         content.transform.SetParent(viewport.transform, false);
         RectTransform contentRT = content.GetComponent<RectTransform>();
         contentRT.anchorMin = new Vector2(0f, 1f);
@@ -157,7 +176,7 @@ public class SpawnMenuUI : MonoBehaviour
         contentRT.offsetMin = contentRT.offsetMax = Vector2.zero;
 
         var grid = content.GetComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(cellWidth, cellHeight);
+        grid.cellSize = new Vector2(cellSize, cellSize);
         grid.spacing = new Vector2(spacing, spacing);
         grid.padding = new RectOffset(15, 15, 15, 15);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
@@ -169,72 +188,110 @@ public class SpawnMenuUI : MonoBehaviour
 
         scrollRect.content = contentRT;
 
-        // Créer les boutons
+        // Boutons avec preview 3D
         buttons = new Button[items.Length];
+        buttonBackgrounds = new Image[items.Length];
+
         for (int i = 0; i < items.Length; i++)
         {
-            int index = i; // capture
+            int index = i;
             GameObject btnObj = new GameObject($"Btn_{items[i].name}",
                 typeof(RectTransform), typeof(Image), typeof(Button));
             btnObj.transform.SetParent(content.transform, false);
 
             var img = btnObj.GetComponent<Image>();
             img.color = normalColor;
+            buttonBackgrounds[i] = img;
 
             var btn = btnObj.GetComponent<Button>();
             var colors = btn.colors;
-            colors.normalColor = normalColor;
-            colors.highlightedColor = hoverColor;
-            colors.pressedColor = selectedColor;
-            colors.selectedColor = selectedColor;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f, 1f);
+            colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+            colors.selectedColor = Color.white;
             btn.colors = colors;
+            btn.targetGraphic = img;
             btn.onClick.AddListener(() => OnItemSelected(index));
             buttons[i] = btn;
 
-            // Texte du bouton
-            GameObject txtObj = new GameObject("Text", typeof(RectTransform));
+            // Generate preview texture
+            Texture2D preview = ModelPreviewGenerator.Generate(items[i].prefab, 128);
+
+            // Image de preview (prend ~75% de la hauteur)
+            GameObject imgObj = new GameObject("Preview", typeof(RectTransform), typeof(RawImage));
+            imgObj.transform.SetParent(btnObj.transform, false);
+            RectTransform imgRT = imgObj.GetComponent<RectTransform>();
+            imgRT.anchorMin = new Vector2(0.05f, 0.25f);
+            imgRT.anchorMax = new Vector2(0.95f, 0.98f);
+            imgRT.offsetMin = imgRT.offsetMax = Vector2.zero;
+            var raw = imgObj.GetComponent<RawImage>();
+            raw.texture = preview;
+            raw.raycastTarget = false; // clicks passent au bouton parent
+
+            // Label nom en bas
+            GameObject txtObj = new GameObject("Name", typeof(RectTransform));
             txtObj.transform.SetParent(btnObj.transform, false);
             RectTransform txtRT = txtObj.GetComponent<RectTransform>();
-            txtRT.anchorMin = Vector2.zero;
-            txtRT.anchorMax = Vector2.one;
-            txtRT.offsetMin = new Vector2(4, 4);
-            txtRT.offsetMax = new Vector2(-4, -4);
+            txtRT.anchorMin = new Vector2(0f, 0f);
+            txtRT.anchorMax = new Vector2(1f, 0.22f);
+            txtRT.offsetMin = new Vector2(4, 2);
+            txtRT.offsetMax = new Vector2(-4, -2);
             var tmp = txtObj.AddComponent<TextMeshProUGUI>();
             tmp.text = items[i].name;
-            tmp.fontSize = 14;
+            tmp.fontSize = 11;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.white;
             tmp.fontStyle = FontStyles.Bold;
             tmp.enableWordWrapping = true;
+            tmp.raycastTarget = false;
         }
     }
 
     private void OnItemSelected(int index)
     {
         if (objectSpawner == null) return;
+
+        selectedIndex = index;
         objectSpawner.SetSelectedIndex(index);
 
-        // Spawn immédiat
-        objectSpawner.SpawnItem(index);
-
-        // Feedback visuel
         if (selectedLabel != null && objectSpawner.SpawnableItems != null
             && index < objectSpawner.SpawnableItems.Length)
         {
-            selectedLabel.text = $"Spawné : {objectSpawner.SpawnableItems[index].name}";
+            selectedLabel.text = $"Sélectionné : {objectSpawner.SpawnableItems[index].name}";
+            selectedLabel.color = new Color(1f, 0.85f, 0.3f);
+        }
+
+        // Activer le bouton PLACER
+        if (placeButton != null)
+        {
+            placeButton.interactable = true;
+            var placeImg = placeButton.GetComponent<Image>();
+            if (placeImg != null) placeImg.color = new Color(0.2f, 0.7f, 0.3f);
         }
 
         UpdateButtonHighlight(index);
     }
 
-    private void UpdateButtonHighlight(int selectedIndex)
+    private void OnPlaceClicked()
     {
-        if (buttons == null) return;
-        for (int i = 0; i < buttons.Length; i++)
+        if (selectedIndex < 0 || objectSpawner == null) return;
+        objectSpawner.SpawnItem(selectedIndex);
+
+        if (selectedLabel != null)
         {
-            var img = buttons[i].GetComponent<Image>();
-            if (img != null)
-                img.color = (i == selectedIndex) ? selectedColor : normalColor;
+            string name = objectSpawner.SpawnableItems[selectedIndex].name;
+            selectedLabel.text = $"{name} placé !";
+            selectedLabel.color = new Color(0.3f, 1f, 0.4f);
+        }
+    }
+
+    private void UpdateButtonHighlight(int selectedIdx)
+    {
+        if (buttonBackgrounds == null) return;
+        for (int i = 0; i < buttonBackgrounds.Length; i++)
+        {
+            if (buttonBackgrounds[i] != null)
+                buttonBackgrounds[i].color = (i == selectedIdx) ? selectedColor : normalColor;
         }
     }
 
