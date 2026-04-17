@@ -85,8 +85,18 @@ public class LightSwitchSetup : MonoBehaviour
 
     private void Start()
     {
-        if (lights == null || lights.Length == 0)
-            lights = FindObjectsByType<Light>(FindObjectsSortMode.None);
+        // Filtrer les lumières null (au cas où des refs auraient été détruites)
+        if (lights != null && lights.Length > 0)
+        {
+            int nullCount = 0;
+            foreach (var l in lights) if (l == null) nullCount++;
+            if (nullCount > 0)
+                Debug.LogWarning($"[LightSwitchSetup] {nullCount}/{lights.Length} lumières null sur {name}");
+        }
+        else
+        {
+            Debug.LogWarning($"[LightSwitchSetup] Aucune lumière assignée sur {name} — assigne des lumières dans l'inspector");
+        }
 
         isOn = startsOn;
         ApplyState(false);
