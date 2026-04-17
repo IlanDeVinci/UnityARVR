@@ -52,9 +52,8 @@ public class SlidingDoorController : MonoBehaviour
 
     public void ToggleDoor()
     {
-        // Handle interruption: stop current move before starting a new one
-        if (currentRoutine != null)
-            StopCoroutine(currentRoutine);
+        // Stop ALL running coroutines (AnimateDoor + its nested MoveTo)
+        StopAllCoroutines();
 
         isOpen = !isOpen;
         currentRoutine = StartCoroutine(AnimateDoor());
