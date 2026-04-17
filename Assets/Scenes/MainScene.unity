@@ -1253,8 +1253,31 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: -212285753890768171, guid: e8a756eab04fd404db3442777b809e74, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 900000030}
   m_SourcePrefab: {fileID: -8037938140082288066, guid: e8a756eab04fd404db3442777b809e74, type: 3}
+--- !u!1 &900000029 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -212285753890768171, guid: e8a756eab04fd404db3442777b809e74, type: 3}
+  m_PrefabInstance: {fileID: 503521770}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &900000030
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900000029}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  pikachuCookedPrefab: {fileID: -8037938140082288066, guid: 3d08a494c05a3dc44afbd785ee38f5d1, type: 3}
+  detectionHeight: 0.5
+  cookSound: {fileID: 8300000, guid: 6a239391aab44f945ad58cc57e5645ce, type: 3}
 --- !u!1 &544770859 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: -2826888515317945702, guid: 8909244db04380443a3e3b1dd1302a70, type: 3}
