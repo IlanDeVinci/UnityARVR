@@ -1,16 +1,16 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using System.Collections;
 
 /// <summary>
-/// Interrupteur VR interactif avec animation et contrôle des lumières.
-/// Fonctionne avec les modèles GLB qui ont des animations "TurnOn" / "TurnOff".
+/// Interrupteur VR interactif avec animation du rocker et contrôle des lumières.
+/// Anime directement le nœud "Rocker" du modèle GLB (pas besoin d'Animator Controller).
 ///
 /// Setup :
 ///   1. Ajouter ce script sur le root du modèle d'interrupteur.
 ///   2. Si le champ lights est vide, le script trouvera automatiquement
-///      toutes les lumières de la scène (sauf la Directional Light).
-///      Si aucune n'est trouvée, il contrôle la Directional Light.
+///      toutes les lumières de la scène.
 /// </summary>
 public class LightSwitchSetup : MonoBehaviour
 {
@@ -21,23 +21,35 @@ public class LightSwitchSetup : MonoBehaviour
     [Header("État initial")]
     [SerializeField] private bool startsOn = true;
 
+    [Header("Animation")]
+    [Tooltip("Nom du nœud enfant qui bascule (le bouton de l'interrupteur).")]
+    [SerializeField] private string rockerNodeName = "Rocker";
+    [SerializeField] private float animationDuration = 0.15f;
+
     [Header("Audio")]
     [SerializeField] private AudioClip switchSound;
 
-    private Animator animator;
     private AudioSource audioSource;
+    private Transform rocker;
     private bool isOn;
+
+    // Rotations extraites du GLB : TurnOn = -0.0749 en X, TurnOff = +0.0749 en X
+    private static readonly Quaternion onRotation = new Quaternion(-0.0749f, 0f, 0f, 0.9972f);
+    private static readonly Quaternion offRotation = new Quaternion(0.0749f, 0f, 0f, 0.9972f);
+
+    private Coroutine animRoutine;
 
     private void Awake()
     {
-        animator = GetComponentInChildren<Animator>();
+        // Trouver le rocker dans les enfants
+        rocker = FindChildRecursive(transform, rockerNodeName);
 
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.spatialBlend = 1f;
 
-        // Collider englobant pour l'interaction XR (même logique que la porte)
+        // Collider englobant pour l'interaction XR
         if (GetComponent<Collider>() == null)
         {
             var renderers = GetComponentsInChildren<MeshRenderer>();
@@ -49,9 +61,8 @@ public class LightSwitchSetup : MonoBehaviour
                     Vector3.zero);
                 foreach (var r in renderers)
                 {
-                    Bounds wb = r.bounds;
-                    combined.Encapsulate(transform.InverseTransformPoint(wb.min));
-                    combined.Encapsulate(transform.InverseTransformPoint(wb.max));
+                    combined.Encapsulate(transform.InverseTransformPoint(r.bounds.min));
+                    combined.Encapsulate(transform.InverseTransformPoint(r.bounds.max));
                 }
                 box.center = combined.center;
                 box.size = combined.size;
@@ -72,7 +83,6 @@ public class LightSwitchSetup : MonoBehaviour
 
     private void Start()
     {
-        // Auto-détecter les lumières si aucune n'est assignée
         if (lights == null || lights.Length == 0)
             lights = FindObjectsByType<Light>(FindObjectsSortMode.None);
 
@@ -100,11 +110,20 @@ public class LightSwitchSetup : MonoBehaviour
 
     private void ApplyState(bool playEffects)
     {
-        // Animation
-        if (animator != null)
+        // Animation du rocker
+        Quaternion target = isOn ? onRotation : offRotation;
+
+        if (rocker != null)
         {
-            string clip = isOn ? "TurnOn" : "TurnOff";
-            animator.Play(clip, 0, 0f);
+            if (playEffects && animationDuration > 0f)
+            {
+                if (animRoutine != null) StopCoroutine(animRoutine);
+                animRoutine = StartCoroutine(AnimateRocker(target));
+            }
+            else
+            {
+                rocker.localRotation = target;
+            }
         }
 
         // Lumières
@@ -117,5 +136,35 @@ public class LightSwitchSetup : MonoBehaviour
         // Son
         if (playEffects && switchSound != null)
             audioSource.PlayOneShot(switchSound);
+    }
+
+    private IEnumerator AnimateRocker(Quaternion target)
+    {
+        Quaternion start = rocker.localRotation;
+        float elapsed = 0f;
+
+        while (elapsed < animationDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / animationDuration);
+            // Ease out pour un mouvement naturel de switch
+            t = 1f - (1f - t) * (1f - t);
+            rocker.localRotation = Quaternion.Slerp(start, target, t);
+            yield return null;
+        }
+
+        rocker.localRotation = target;
+        animRoutine = null;
+    }
+
+    private static Transform FindChildRecursive(Transform parent, string name)
+    {
+        foreach (Transform child in parent)
+        {
+            if (child.name == name) return child;
+            Transform found = FindChildRecursive(child, name);
+            if (found != null) return found;
+        }
+        return null;
     }
 }
