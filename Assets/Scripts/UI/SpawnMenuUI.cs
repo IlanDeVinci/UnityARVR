@@ -142,10 +142,15 @@ public class SpawnMenuUI : MonoBehaviour
         panelRT.anchorMax = new Vector2(1f, 1f);
         panelRT.pivot = new Vector2(1f, 1f);
         panelRT.anchoredPosition = new Vector2(-15f, -15f);
-        panelRT.sizeDelta = new Vector2(240f, 90f);
+        panelRT.sizeDelta = new Vector2(270f, 180f);
 
         var img = panel.GetComponent<UnityEngine.UI.Image>();
-        img.color = new Color(0.1f, 0.08f, 0.18f, 0.85f);
+        img.color = new Color(0.08f, 0.1f, 0.18f, 0.92f);
+
+        // Outline directement sur l'image du panel
+        var outline = panel.AddComponent<UnityEngine.UI.Outline>();
+        outline.effectColor = new Color(1f, 0.82f, 0.25f, 0.8f);
+        outline.effectDistance = new Vector2(2, -2);
 
         // Texte dans le panel
         GameObject txtObj = new GameObject("SensorText", typeof(RectTransform));
