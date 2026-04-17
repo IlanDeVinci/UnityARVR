@@ -148,10 +148,30 @@ public class ObjectSpawner : MonoBehaviour
         obj.tag = "SpawnedObject";
         obj.transform.localScale = Vector3.one * defaultScale;
 
+        // Nettoyer les caméras et lumières héritées du modèle 3D
+        StripCamerasAndLights(obj);
+
         MakeGrabbable(obj);
 
         if (spawnSound != null)
             audioSource.PlayOneShot(spawnSound);
+    }
+
+    /// <summary>
+    /// Supprime toutes les caméras et lumières du modèle spawné.
+    /// Les GLB/FBX importés contiennent souvent les cameras/lights du logiciel d'origine.
+    /// </summary>
+    private static void StripCamerasAndLights(GameObject obj)
+    {
+        foreach (var cam in obj.GetComponentsInChildren<Camera>(true))
+            Destroy(cam);
+
+        foreach (var l in obj.GetComponentsInChildren<Light>(true))
+            Destroy(l);
+
+        // Supprimer aussi les AudioListener en trop (une seule doit exister dans la scène)
+        foreach (var al in obj.GetComponentsInChildren<AudioListener>(true))
+            Destroy(al);
     }
 
     /// <summary>
