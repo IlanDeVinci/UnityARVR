@@ -58,6 +58,11 @@ public class PikachuWander : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         animator = GetComponent<Animator>();
         audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.spatialBlend = 0.6f;
+        audioSource.volume = 1f;
+        audioSource.maxDistance = 20f;
         grabInteractable = GetComponent<XRGrabInteractable>();
         rb.freezeRotation = true;
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;

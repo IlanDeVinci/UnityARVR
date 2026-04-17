@@ -45,7 +45,9 @@ public class SlidingDoorController : MonoBehaviour
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
-        audioSource.spatialBlend = 1f;
+        audioSource.spatialBlend = 0.5f;
+        audioSource.volume = 1f;
+        audioSource.maxDistance = 25f;
     }
 
     void OnDestroy()
