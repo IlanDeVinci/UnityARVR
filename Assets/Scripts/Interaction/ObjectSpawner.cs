@@ -163,15 +163,27 @@ public class ObjectSpawner : MonoBehaviour
     /// </summary>
     private static void StripCamerasAndLights(GameObject obj)
     {
+        // URP ajoute des composants requis sur Camera/Light : on détruit le GameObject entier
         foreach (var cam in obj.GetComponentsInChildren<Camera>(true))
-            Destroy(cam);
+        {
+            if (cam == null) continue;
+            if (cam.gameObject == obj) cam.enabled = false;
+            else Destroy(cam.gameObject);
+        }
 
         foreach (var l in obj.GetComponentsInChildren<Light>(true))
-            Destroy(l);
+        {
+            if (l == null) continue;
+            if (l.gameObject == obj) l.enabled = false;
+            else Destroy(l.gameObject);
+        }
 
-        // Supprimer aussi les AudioListener en trop (une seule doit exister dans la scène)
         foreach (var al in obj.GetComponentsInChildren<AudioListener>(true))
-            Destroy(al);
+        {
+            if (al == null) continue;
+            al.enabled = false;
+            if (al.gameObject != obj) Destroy(al.gameObject);
+        }
     }
 
     /// <summary>

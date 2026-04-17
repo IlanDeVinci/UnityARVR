@@ -20,7 +20,8 @@ public class SceneAssetCleaner : MonoBehaviour
                 camerasKept++;
                 continue;
             }
-            Destroy(cam);
+            cam.enabled = false;
+            Destroy(cam.gameObject);
             camerasRemoved++;
         }
 
@@ -30,19 +31,18 @@ public class SceneAssetCleaner : MonoBehaviour
         int lightsRemoved = 0;
         foreach (var l in lights)
         {
-            // Garder les Directional Lights (éclairage principal)
             if (l.type == LightType.Directional)
             {
                 lightsKept++;
                 continue;
             }
-            // Garder les lumières contrôlées par l'interrupteur (si taguées ou nommées)
             if (l.gameObject.name.ToLower().Contains("room") || l.gameObject.name.ToLower().Contains("lamp"))
             {
                 lightsKept++;
                 continue;
             }
-            Destroy(l);
+            l.enabled = false;
+            Destroy(l.gameObject);
             lightsRemoved++;
         }
 

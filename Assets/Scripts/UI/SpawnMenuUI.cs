@@ -19,7 +19,7 @@ public class SpawnMenuUI : MonoBehaviour
 
     [Header("Grid")]
     [SerializeField] private int columns = 4;
-    [SerializeField] private float cellSize = 150f;
+    [SerializeField] private float cellSize = 130f;
     [SerializeField] private float spacing = 10f;
 
     [Header("Colors")]
@@ -54,54 +54,80 @@ public class SpawnMenuUI : MonoBehaviour
     private void Start()
     {
         if (menuPanel == null)
+        {
             BuildMenuFromScratch();
+        }
         else
-            menuPanel.SetActive(false);
+        {
+            // Nettoyer l'existant et le redimensionner pour le nouveau layout
+            PrepareExistingPanel();
+        }
 
         BuildGrid();
     }
 
-    private void BuildMenuFromScratch()
+    /// <summary>
+    /// Si le menuPanel existe déjà dans la scène, on le nettoie et le redimensionne.
+    /// </summary>
+    private void PrepareExistingPanel()
     {
-        var canvas = GetComponent<Canvas>();
-        if (canvas == null) canvas = gameObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        if (canvas.worldCamera == null) canvas.worldCamera = Camera.main;
+        // Supprimer tous les enfants de l'ancien menu
+        for (int i = menuPanel.transform.childCount - 1; i >= 0; i--)
+            Destroy(menuPanel.transform.GetChild(i).gameObject);
 
-        if (GetComponent<CanvasScaler>() == null)
-            gameObject.AddComponent<CanvasScaler>();
-
-        if (GetComponent<TrackedDeviceGraphicRaycaster>() == null)
-            gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
-        var gr = GetComponent<GraphicRaycaster>();
-        if (gr != null && gr.GetType() == typeof(GraphicRaycaster))
-            Destroy(gr);
-
-        RectTransform rt = GetComponent<RectTransform>();
-        if (rt == null) rt = gameObject.AddComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(900f, 720f);
-
-        // Panel de fond
-        menuPanel = new GameObject("Panel", typeof(RectTransform), typeof(Image));
-        menuPanel.transform.SetParent(transform, false);
+        // Redimensionner et recentrer le panel
         RectTransform panelRT = menuPanel.GetComponent<RectTransform>();
-        panelRT.anchorMin = Vector2.zero;
-        panelRT.anchorMax = Vector2.one;
-        panelRT.offsetMin = panelRT.offsetMax = Vector2.zero;
-        menuPanel.GetComponent<Image>().color = new Color(0.06f, 0.04f, 0.1f, 0.97f);
+        if (panelRT != null)
+        {
+            panelRT.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRT.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRT.anchoredPosition = Vector2.zero;
+            panelRT.sizeDelta = new Vector2(800f, 780f);
+        }
 
-        // Titre
+        // Aussi redimensionner le Canvas parent s'il est plus petit
+        var canvas = menuPanel.GetComponentInParent<Canvas>();
+        if (canvas != null)
+        {
+            RectTransform canvasRT = canvas.GetComponent<RectTransform>();
+            if (canvasRT != null)
+            {
+                canvasRT.sizeDelta = new Vector2(800f, 780f);
+                if (canvas.renderMode == RenderMode.WorldSpace)
+                {
+                    Vector3 s = canvasRT.localScale;
+                    if (s.x < 0.001f || s.x > 0.005f)
+                        canvasRT.localScale = Vector3.one * 0.002f;
+                }
+            }
+        }
+
+        // S'assurer que l'image de fond couvre tout le panel
+        var panelImg = menuPanel.GetComponent<Image>();
+        if (panelImg != null)
+            panelImg.color = new Color(0.06f, 0.04f, 0.1f, 0.97f);
+
+        // Ajouter titre, label, bouton placer
+        AddMenuHeader();
+        AddPlaceButton();
+
+        menuPanel.SetActive(false);
+    }
+
+    private void AddMenuHeader()
+    {
         CreateText("Title", menuPanel.transform,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(800f, 45f),
             "CHOISIR UN OBJET", 30, new Color(1f, 0.85f, 0.3f));
 
-        // Label sélection
         var labelObj = CreateText("SelectedLabel", menuPanel.transform,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -72f), new Vector2(700f, 28f),
             "Sélectionne un objet dans la liste", 18, new Color(0.75f, 0.75f, 0.75f));
         selectedLabel = labelObj.GetComponent<TMP_Text>();
+    }
 
-        // Bouton PLACER
+    private void AddPlaceButton()
+    {
         GameObject placeObj = new GameObject("PlaceButton",
             typeof(RectTransform), typeof(Image), typeof(Button));
         placeObj.transform.SetParent(menuPanel.transform, false);
@@ -128,6 +154,39 @@ public class SpawnMenuUI : MonoBehaviour
         placeTxt.alignment = TextAlignmentOptions.Center;
         placeTxt.color = Color.white;
         placeTxt.fontStyle = FontStyles.Bold;
+    }
+
+    private void BuildMenuFromScratch()
+    {
+        var canvas = GetComponent<Canvas>();
+        if (canvas == null) canvas = gameObject.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        if (canvas.worldCamera == null) canvas.worldCamera = Camera.main;
+
+        if (GetComponent<CanvasScaler>() == null)
+            gameObject.AddComponent<CanvasScaler>();
+
+        if (GetComponent<TrackedDeviceGraphicRaycaster>() == null)
+            gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+        var gr = GetComponent<GraphicRaycaster>();
+        if (gr != null && gr.GetType() == typeof(GraphicRaycaster))
+            Destroy(gr);
+
+        RectTransform rt = GetComponent<RectTransform>();
+        if (rt == null) rt = gameObject.AddComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(1100f, 820f);
+
+        // Panel de fond
+        menuPanel = new GameObject("Panel", typeof(RectTransform), typeof(Image));
+        menuPanel.transform.SetParent(transform, false);
+        RectTransform panelRT = menuPanel.GetComponent<RectTransform>();
+        panelRT.anchorMin = Vector2.zero;
+        panelRT.anchorMax = Vector2.one;
+        panelRT.offsetMin = panelRT.offsetMax = Vector2.zero;
+        menuPanel.GetComponent<Image>().color = new Color(0.06f, 0.04f, 0.1f, 0.97f);
+
+        AddMenuHeader();
+        AddPlaceButton();
 
         menuPanel.SetActive(false);
     }
@@ -141,31 +200,36 @@ public class SpawnMenuUI : MonoBehaviour
         SpawnableItem[] items = objectSpawner.SpawnableItems;
         if (items == null || items.Length == 0) return;
 
-        // Scroll
+        // Scroll container
         GameObject scroll = new GameObject("Scroll",
             typeof(RectTransform), typeof(ScrollRect), typeof(Image));
         scroll.transform.SetParent(menuPanel.transform, false);
         RectTransform scrollRT = scroll.GetComponent<RectTransform>();
-        scrollRT.anchorMin = new Vector2(0.04f, 0.15f);
-        scrollRT.anchorMax = new Vector2(0.96f, 0.85f);
+        scrollRT.anchorMin = new Vector2(0.03f, 0.16f);
+        scrollRT.anchorMax = new Vector2(0.97f, 0.84f);
         scrollRT.offsetMin = scrollRT.offsetMax = Vector2.zero;
         scroll.GetComponent<Image>().color = new Color(0.03f, 0.02f, 0.06f, 0.8f);
 
         var scrollRect = scroll.GetComponent<ScrollRect>();
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
+        scrollRect.scrollSensitivity = 30f;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
 
+        // Viewport (masque) — laisse 30 px à droite pour la scrollbar
         GameObject viewport = new GameObject("Viewport",
             typeof(RectTransform), typeof(Mask), typeof(Image));
         viewport.transform.SetParent(scroll.transform, false);
         RectTransform vpRT = viewport.GetComponent<RectTransform>();
         vpRT.anchorMin = Vector2.zero;
         vpRT.anchorMax = Vector2.one;
-        vpRT.offsetMin = vpRT.offsetMax = Vector2.zero;
+        vpRT.offsetMin = new Vector2(5, 5);
+        vpRT.offsetMax = new Vector2(-35, -5); // -35 pour laisser place à la scrollbar
         viewport.GetComponent<Image>().color = new Color(1, 1, 1, 0.01f);
         viewport.GetComponent<Mask>().showMaskGraphic = false;
         scrollRect.viewport = vpRT;
 
+        // Content (grid)
         GameObject content = new GameObject("Content",
             typeof(RectTransform), typeof(GridLayoutGroup), typeof(ContentSizeFitter));
         content.transform.SetParent(viewport.transform, false);
@@ -178,7 +242,7 @@ public class SpawnMenuUI : MonoBehaviour
         var grid = content.GetComponent<GridLayoutGroup>();
         grid.cellSize = new Vector2(cellSize, cellSize);
         grid.spacing = new Vector2(spacing, spacing);
-        grid.padding = new RectOffset(15, 15, 15, 15);
+        grid.padding = new RectOffset(10, 10, 10, 10);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = columns;
 
@@ -187,6 +251,42 @@ public class SpawnMenuUI : MonoBehaviour
         fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
         scrollRect.content = contentRT;
+
+        // Scrollbar verticale visible à droite
+        GameObject scrollbar = new GameObject("Scrollbar",
+            typeof(RectTransform), typeof(Image), typeof(Scrollbar));
+        scrollbar.transform.SetParent(scroll.transform, false);
+        RectTransform sbRT = scrollbar.GetComponent<RectTransform>();
+        sbRT.anchorMin = new Vector2(1f, 0f);
+        sbRT.anchorMax = new Vector2(1f, 1f);
+        sbRT.pivot = new Vector2(1f, 0.5f);
+        sbRT.anchoredPosition = Vector2.zero;
+        sbRT.sizeDelta = new Vector2(25, 0);
+        scrollbar.GetComponent<Image>().color = new Color(0.15f, 0.15f, 0.2f, 0.9f);
+
+        var sb = scrollbar.GetComponent<Scrollbar>();
+        sb.direction = Scrollbar.Direction.BottomToTop;
+
+        GameObject sliding = new GameObject("SlidingArea", typeof(RectTransform));
+        sliding.transform.SetParent(scrollbar.transform, false);
+        RectTransform sldRT = sliding.GetComponent<RectTransform>();
+        sldRT.anchorMin = Vector2.zero;
+        sldRT.anchorMax = Vector2.one;
+        sldRT.offsetMin = new Vector2(3, 3);
+        sldRT.offsetMax = new Vector2(-3, -3);
+
+        GameObject handle = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+        handle.transform.SetParent(sliding.transform, false);
+        RectTransform hRT = handle.GetComponent<RectTransform>();
+        hRT.anchorMin = Vector2.zero;
+        hRT.anchorMax = Vector2.one;
+        hRT.offsetMin = hRT.offsetMax = Vector2.zero;
+        handle.GetComponent<Image>().color = new Color(0.9f, 0.7f, 0.2f, 1f);
+
+        sb.handleRect = hRT;
+        sb.targetGraphic = handle.GetComponent<Image>();
+        scrollRect.verticalScrollbar = sb;
+        scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
 
         // Boutons avec preview 3D
         buttons = new Button[items.Length];

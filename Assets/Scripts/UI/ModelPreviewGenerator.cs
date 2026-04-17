@@ -86,22 +86,43 @@ public static class ModelPreviewGenerator
 
     private static void StripExtras(GameObject obj)
     {
+        // Caméras : détruire le GameObject entier (URP ajoute des composants requis)
         foreach (var cam in obj.GetComponentsInChildren<Camera>(true))
         {
-            cam.enabled = false;
-            Object.DestroyImmediate(cam);
+            if (cam == null) continue;
+            if (cam.gameObject == obj)
+            {
+                cam.enabled = false;
+            }
+            else
+            {
+                Object.DestroyImmediate(cam.gameObject);
+            }
         }
+
+        // Lumières : détruire le GameObject entier
         foreach (var l in obj.GetComponentsInChildren<Light>(true))
         {
-            l.enabled = false;
-            Object.DestroyImmediate(l);
+            if (l == null) continue;
+            if (l.gameObject == obj)
+            {
+                l.enabled = false;
+            }
+            else
+            {
+                Object.DestroyImmediate(l.gameObject);
+            }
         }
+
         foreach (var al in obj.GetComponentsInChildren<AudioListener>(true))
         {
+            if (al == null) continue;
             al.enabled = false;
-            Object.DestroyImmediate(al);
+            if (al.gameObject != obj)
+                Object.DestroyImmediate(al.gameObject);
         }
-        // Désactiver aussi les MonoBehaviours pour éviter qu'ils tournent
+
+        // Désactiver les MonoBehaviours pour pas qu'ils tournent
         foreach (var mb in obj.GetComponentsInChildren<MonoBehaviour>(true))
         {
             if (mb != null) mb.enabled = false;

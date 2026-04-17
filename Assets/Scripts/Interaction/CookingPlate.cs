@@ -92,6 +92,8 @@ public class CookingPlate : MonoBehaviour
         smokeFX.transform.localScale = Vector3.one;
 
         var ps = smokeFX.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
         var main = ps.main;
         main.duration = 5f;
         main.loop = true;
@@ -348,20 +350,28 @@ public class CookingPlate : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Ne déclenche que pour une poêle AVEC un Pikachu dedans.
+    /// Les poêles vides (poele_premium_vide) sont ignorées.
+    /// </summary>
     private bool IsPan(Collider col)
     {
-        if (col.GetComponent<FryingPan>() != null) return true;
-        if (col.GetComponentInParent<FryingPan>() != null) return true;
-
         string n = col.gameObject.name.ToLower();
-        if (n.Contains("poele") || n.Contains("pan")) return true;
+        string pn = col.transform.parent != null ? col.transform.parent.name.ToLower() : "";
+        string root = col.transform.root != null ? col.transform.root.name.ToLower() : "";
 
-        if (col.transform.parent != null)
-        {
-            string pn = col.transform.parent.name.ToLower();
-            if (pn.Contains("poele") || pn.Contains("pan")) return true;
-        }
-        return false;
+        bool isPan = n.Contains("poele") || n.Contains("pan")
+                  || pn.Contains("poele") || pn.Contains("pan")
+                  || root.Contains("poele") || root.Contains("pan");
+
+        bool hasPikachu = n.Contains("pikachu")
+                       || pn.Contains("pikachu")
+                       || root.Contains("pikachu");
+
+        // Ignorer les poêles vides
+        bool isEmpty = n.Contains("vide") || pn.Contains("vide") || root.Contains("vide");
+
+        return isPan && hasPikachu && !isEmpty;
     }
 }
 

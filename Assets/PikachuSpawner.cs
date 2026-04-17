@@ -43,18 +43,21 @@ public class PikachuSpawner : MonoBehaviour
     {
         foreach (var cam in obj.GetComponentsInChildren<Camera>(true))
         {
-            cam.enabled = false;
-            Destroy(cam);
+            if (cam == null) continue;
+            if (cam.gameObject == obj) cam.enabled = false;
+            else Destroy(cam.gameObject);
         }
         foreach (var l in obj.GetComponentsInChildren<Light>(true))
         {
-            l.enabled = false;
-            Destroy(l);
+            if (l == null) continue;
+            if (l.gameObject == obj) l.enabled = false;
+            else Destroy(l.gameObject);
         }
         foreach (var al in obj.GetComponentsInChildren<AudioListener>(true))
         {
+            if (al == null) continue;
             al.enabled = false;
-            Destroy(al);
+            if (al.gameObject != obj) Destroy(al.gameObject);
         }
     }
 }

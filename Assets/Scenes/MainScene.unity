@@ -1541,8 +1541,33 @@ PrefabInstance:
     - {fileID: -8700617353114198275, guid: 08e668d781fa61848927e645d73dd919, type: 3}
     - {fileID: 65702495048144492, guid: 08e668d781fa61848927e645d73dd919, type: 3}
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 08e668d781fa61848927e645d73dd919, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 900000081}
   m_SourcePrefab: {fileID: 100100000, guid: 08e668d781fa61848927e645d73dd919, type: 3}
+--- !u!1 &900000080 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 08e668d781fa61848927e645d73dd919, type: 3}
+  m_PrefabInstance: {fileID: 690591594}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &900000081
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900000080}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  detectionHeight: 1.2
+  sizeMultiplier: 1
+  offsetFromTop: {x: 0, y: -0.2, z: 0}
+  trashSound: {fileID: 8300000, guid: ae2552a13a5eaf849a8a3e6402c3a507, type: 3}
+  onlySpawnedObjects: 0
 --- !u!1 &701735894 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: -194195554796193533, guid: add1e6b0b484e6243a5da3040db08708, type: 3}
