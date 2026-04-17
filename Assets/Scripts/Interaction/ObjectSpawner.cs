@@ -1,24 +1,25 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Attachment;
 
 /// <summary>
-/// Spawns furniture at the point where the right controller's ray hits the ground.
-/// Uses XR controller ray for positioning.
+/// Spawner d'objets. Charge automatiquement tous les modèles depuis
+/// Resources/Furniture/ (triés alphabétiquement).
 /// </summary>
 public class ObjectSpawner : MonoBehaviour
 {
-    [Header("Spawnable Prefabs")]
-    [SerializeField] private SpawnableItem[] spawnableItems;
-
     [Header("Spawn Settings")]
     [SerializeField] private float spawnDistance = 3f;
     [SerializeField] private LayerMask groundLayer;
+    [Tooltip("Échelle par défaut des objets spawnés (0.1 = 10%).")]
+    [SerializeField] private float defaultScale = 0.2f;
 
     [Header("XR References")]
     [SerializeField] private XRRayInteractor rightHandRay;
 
-    [Header("Input - Bind to right controller button (e.g. Primary Button / A)")]
+    [Header("Input")]
     [SerializeField] private InputActionReference spawnAction;
     [SerializeField] private InputActionReference nextItemAction;
     [SerializeField] private InputActionReference prevItemAction;
@@ -28,6 +29,7 @@ public class ObjectSpawner : MonoBehaviour
 
     private AudioSource audioSource;
     private int selectedIndex;
+    private SpawnableItem[] spawnableItems;
 
     public SpawnableItem[] SpawnableItems => spawnableItems;
     public int SelectedIndex => selectedIndex;
@@ -37,6 +39,39 @@ public class ObjectSpawner : MonoBehaviour
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
+
+        LoadSpawnableItems();
+    }
+
+    private void LoadSpawnableItems()
+    {
+        // Charger tous les prefabs depuis Resources/Furniture
+        var prefabs = Resources.LoadAll<GameObject>("Furniture");
+        System.Array.Sort(prefabs, (a, b) => string.Compare(a.name, b.name));
+
+        spawnableItems = new SpawnableItem[prefabs.Length];
+        for (int i = 0; i < prefabs.Length; i++)
+        {
+            spawnableItems[i] = new SpawnableItem
+            {
+                name = FormatName(prefabs[i].name),
+                prefab = prefabs[i]
+            };
+        }
+
+        Debug.Log($"[ObjectSpawner] {spawnableItems.Length} objets chargés");
+    }
+
+    /// <summary>
+    /// Enlève les préfixes numériques (ex: "01_Chaise_Pikachu" → "Chaise Pikachu").
+    /// </summary>
+    private static string FormatName(string raw)
+    {
+        // Enlever préfixe "01_" si présent
+        int underscore = raw.IndexOf('_');
+        if (underscore > 0 && underscore <= 3 && int.TryParse(raw.Substring(0, underscore), out _))
+            raw = raw.Substring(underscore + 1);
+        return raw.Replace('_', ' ');
     }
 
     private void OnEnable()
@@ -79,8 +114,16 @@ public class ObjectSpawner : MonoBehaviour
 
     public void SetSelectedIndex(int index)
     {
-        if (spawnableItems.Length == 0) return;
+        if (spawnableItems == null || spawnableItems.Length == 0) return;
         selectedIndex = ((index % spawnableItems.Length) + spawnableItems.Length) % spawnableItems.Length;
+    }
+
+    /// <summary>
+    /// Spawn immédiatement l'objet sélectionné (appelable depuis un bouton UI).
+    /// </summary>
+    public void SpawnSelected()
+    {
+        OnSpawn(default);
     }
 
     private void OnNextItem(InputAction.CallbackContext ctx) => SetSelectedIndex(selectedIndex + 1);
@@ -88,46 +131,93 @@ public class ObjectSpawner : MonoBehaviour
 
     private void OnSpawn(InputAction.CallbackContext ctx)
     {
-        if (spawnableItems.Length == 0) return;
+        if (spawnableItems == null || spawnableItems.Length == 0) return;
+        SpawnItem(selectedIndex);
+    }
+
+    /// <summary>
+    /// Spawn un objet par index (appelable depuis le menu UI).
+    /// </summary>
+    public void SpawnItem(int index)
+    {
+        if (spawnableItems == null || spawnableItems.Length == 0) return;
+        if (index < 0 || index >= spawnableItems.Length) return;
 
         Vector3 spawnPos = GetSpawnPosition();
-        GameObject obj = Instantiate(
-            spawnableItems[selectedIndex].prefab,
-            spawnPos,
-            Quaternion.identity
-        );
+        GameObject obj = Instantiate(spawnableItems[index].prefab, spawnPos, Quaternion.identity);
         obj.tag = "SpawnedObject";
+        obj.transform.localScale = Vector3.one * defaultScale;
 
-        // Make spawned objects grabbable in VR
-        if (obj.GetComponent<Rigidbody>() == null)
-        {
-            Rigidbody rb = obj.AddComponent<Rigidbody>();
-            rb.mass = 1f;
-        }
-
-        var grabInteractable = obj.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
-        if (grabInteractable == null)
-            obj.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+        MakeGrabbable(obj);
 
         if (spawnSound != null)
             audioSource.PlayOneShot(spawnSound);
     }
 
-    private Vector3 GetSpawnPosition()
+    /// <summary>
+    /// Ajoute Rigidbody + Collider + XRGrabInteractable (far-grab blaster).
+    /// </summary>
+    private static void MakeGrabbable(GameObject obj)
     {
-        // Use the XR ray interactor's hit point if available
-        if (rightHandRay != null && rightHandRay.TryGetCurrent3DRaycastHit(out RaycastHit xrHit))
+        if (obj.GetComponent<Rigidbody>() == null)
         {
-            return xrHit.point;
+            var rb = obj.AddComponent<Rigidbody>();
+            rb.mass = 1f;
+            rb.useGravity = true;
+            rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         }
 
-        // Fallback: use headset forward direction
+        if (obj.GetComponent<Collider>() == null)
+        {
+            var renderers = obj.GetComponentsInChildren<MeshRenderer>();
+            if (renderers.Length > 0)
+            {
+                Bounds combined = renderers[0].bounds;
+                for (int i = 1; i < renderers.Length; i++)
+                    combined.Encapsulate(renderers[i].bounds);
+
+                var box = obj.AddComponent<BoxCollider>();
+                box.center = obj.transform.InverseTransformPoint(combined.center);
+                Vector3 scale = obj.transform.lossyScale;
+                box.size = new Vector3(
+                    combined.size.x / scale.x,
+                    combined.size.y / scale.y,
+                    combined.size.z / scale.z);
+            }
+            else
+            {
+                obj.AddComponent<BoxCollider>();
+            }
+        }
+
+        if (obj.GetComponent<XRGrabInteractable>() == null)
+        {
+            var g = obj.AddComponent<XRGrabInteractable>();
+            g.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+            g.throwOnDetach = true;
+            g.useDynamicAttach = true;
+            g.farAttachMode = InteractableFarAttachMode.Near;
+            g.smoothPosition = true;
+            g.smoothPositionAmount = 12f;
+            g.tightenPosition = 0.5f;
+            g.smoothRotation = true;
+            g.smoothRotationAmount = 12f;
+            g.tightenRotation = 0.5f;
+            g.attachEaseInTime = 0.1f;
+        }
+    }
+
+    private Vector3 GetSpawnPosition()
+    {
+        if (rightHandRay != null && rightHandRay.TryGetCurrent3DRaycastHit(out RaycastHit xrHit))
+            return xrHit.point + Vector3.up * 0.2f;
+
         Camera cam = Camera.main;
         if (cam != null)
         {
             Ray ray = new Ray(cam.transform.position, cam.transform.forward);
             if (Physics.Raycast(ray, out RaycastHit hit, spawnDistance * 2f, groundLayer))
-                return hit.point;
+                return hit.point + Vector3.up * 0.2f;
 
             Vector3 forward = cam.transform.forward;
             forward.y = 0f;

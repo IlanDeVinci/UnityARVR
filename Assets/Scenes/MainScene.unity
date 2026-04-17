@@ -3124,14 +3124,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5587765a0f604e649a189bb1a1cb5f00, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ObjectSpawner
-  spawnableItems:
-  - name: Pikachu Chair
-    prefab: {fileID: 974244689}
-    icon: {fileID: 21300000, guid: db3e7b7c8db355e499429545071a0321, type: 3}
   spawnDistance: 3
   groundLayer:
     serializedVersion: 2
     m_Bits: 0
+  defaultScale: 0.2
   rightHandRay: {fileID: 0}
   spawnAction: {fileID: -6601067469686308098, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   nextItemAction: {fileID: 7476244043514120974, guid: 052faaac586de48259a63d0c4782560b, type: 3}
