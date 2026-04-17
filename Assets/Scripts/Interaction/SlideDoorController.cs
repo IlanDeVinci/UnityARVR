@@ -3,7 +3,6 @@ using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using System.Collections;
 
-[RequireComponent(typeof(Collider))]
 public class SlidingDoorController : MonoBehaviour
 {
     [Header("Settings")]
@@ -18,17 +17,17 @@ public class SlidingDoorController : MonoBehaviour
     {
         initialPosition = transform.localPosition;
 
-        // Automatically detect dimensions from the Mesh and Scale
-        MeshFilter meshFilter = GetComponent<MeshFilter>();
-        if (meshFilter != null && meshFilter.sharedMesh != null)
+        // Detect dimensions — works whether meshes are on this object or on children
+        objectDimensions = ComputeBounds();
+
+        // Ensure a collider exists for XR interaction
+        if (GetComponent<Collider>() == null)
         {
-            // Calculate real world size (Mesh size * Object scale)
-            objectDimensions = Vector3.Scale(meshFilter.sharedMesh.bounds.size, transform.localScale);
-        }
-        else
-        {
-            // Fallback to your provided dimensions if no mesh is found
-            objectDimensions = new Vector3(3f, 4f, 0.5f);
+            var box = gameObject.AddComponent<BoxCollider>();
+            // Size the collider to cover all child meshes
+            Bounds local = ComputeLocalBounds();
+            box.center = local.center;
+            box.size = local.size;
         }
 
         // Auto-setup XR interactable for VR controller support
@@ -99,5 +98,67 @@ public class SlidingDoorController : MonoBehaviour
             yield return null;
         }
         transform.localPosition = target;
+    }
+
+    /// <summary>
+    /// Returns world-space dimensions of the door (this object + all children).
+    /// </summary>
+    private Vector3 ComputeBounds()
+    {
+        // Try this object first
+        MeshFilter mf = GetComponent<MeshFilter>();
+        if (mf != null && mf.sharedMesh != null)
+            return Vector3.Scale(mf.sharedMesh.bounds.size, transform.localScale);
+
+        MeshRenderer mr = GetComponent<MeshRenderer>();
+        if (mr != null)
+            return mr.bounds.size;
+
+        // Combine all child renderers
+        var renderers = GetComponentsInChildren<MeshRenderer>();
+        if (renderers.Length > 0)
+        {
+            Bounds combined = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+                combined.Encapsulate(renderers[i].bounds);
+            return combined.size;
+        }
+
+        return new Vector3(3f, 4f, 0.5f);
+    }
+
+    /// <summary>
+    /// Returns local-space bounds encompassing all child meshes (for collider setup).
+    /// </summary>
+    private Bounds ComputeLocalBounds()
+    {
+        var renderers = GetComponentsInChildren<MeshRenderer>();
+        if (renderers.Length == 0)
+            return new Bounds(Vector3.zero, Vector3.one);
+
+        // Convert world bounds to local space
+        Bounds combined = new Bounds(
+            transform.InverseTransformPoint(renderers[0].bounds.center),
+            Vector3.zero);
+
+        foreach (var r in renderers)
+        {
+            // Encapsulate the 8 corners of each renderer's world bounds in local space
+            Bounds wb = r.bounds;
+            Vector3 min = wb.min;
+            Vector3 max = wb.max;
+            for (int x = 0; x < 2; x++)
+            for (int y = 0; y < 2; y++)
+            for (int z = 0; z < 2; z++)
+            {
+                Vector3 corner = new Vector3(
+                    x == 0 ? min.x : max.x,
+                    y == 0 ? min.y : max.y,
+                    z == 0 ? min.z : max.z);
+                combined.Encapsulate(transform.InverseTransformPoint(corner));
+            }
+        }
+
+        return combined;
     }
 }
