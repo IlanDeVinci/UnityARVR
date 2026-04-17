@@ -3112,6 +3112,7 @@ GameObject:
   - component: {fileID: 1085746180}
   - component: {fileID: 1085746181}
   - component: {fileID: 900000070}
+  - component: {fileID: 900000090}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -3224,6 +3225,25 @@ MonoBehaviour:
   nextItemAction: {fileID: 7476244043514120974, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   prevItemAction: {fileID: 2411907206095950430, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   spawnSound: {fileID: 8300000, guid: 9e050a85b14ec614688dda79012a6243, type: 3}
+--- !u!114 &900000090
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1085746175}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  leftInteractor: {fileID: 0}
+  rightInteractor: {fileID: 0}
+  leftStickAction: {fileID: 1010738217276881514, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  rightStickAction: {fileID: -6493913391331992944, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  rotationSpeed: 90
+  deadZone: 0.2
+  oneHandedMode: 1
 --- !u!1 &1101443178 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: -642610861636117217, guid: add1e6b0b484e6243a5da3040db08708, type: 3}
