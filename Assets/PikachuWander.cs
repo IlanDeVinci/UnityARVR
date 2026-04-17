@@ -42,6 +42,7 @@ public class PikachuWander : MonoBehaviour
     private bool hasPlayedFleeSound = false;
     private XRGrabInteractable grabInteractable;
     private bool isGrabbed = false;
+    private bool isThrown = false;
 
     // Force de collision pour sortir des murs
     private Vector3 collisionPush = Vector3.zero;
@@ -95,22 +96,26 @@ public class PikachuWander : MonoBehaviour
     private void OnReleased(SelectExitEventArgs args)
     {
         isGrabbed = false;
+        isThrown = true;
 
-        // Réactiver la gravité pour la chute / le lancer
         rb.useGravity = true;
-
-        if (animator != null)
-            animator.enabled = true;
 
         StartCoroutine(ResumeAfterLanding());
     }
 
     private IEnumerator ResumeAfterLanding()
     {
+        // Laisser le lancer se faire sans interférence
         yield return new WaitForSeconds(0.1f);
 
         while (!IsGrounded())
             yield return new WaitForFixedUpdate();
+
+        // Atterri : reprendre l'IA
+        isThrown = false;
+
+        if (animator != null)
+            animator.enabled = true;
 
         centerPoint = transform.position;
         PickNewTarget();
@@ -140,8 +145,8 @@ public class PikachuWander : MonoBehaviour
 
     void FixedUpdate()
     {
-        // Si attrapé par le joueur, ne rien faire
-        if (isGrabbed)
+        // Si attrapé ou lancé, ne pas interférer avec la physique
+        if (isGrabbed || isThrown)
             return;
 
         // Si pas au sol, ne rien faire (en l'air ou en train de tomber)
