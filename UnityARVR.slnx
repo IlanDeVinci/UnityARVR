@@ -1,11 +1,15 @@
 ﻿<Solution>
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.csproj" />
+  <Project Path="TiltBrushToolkitRuntime.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Editor.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="TiltBrushToolkitEditor.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Tests.csproj" />
+  <Project Path="TiltBrushToolkitThirdPartyEditor.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Analytics.Editor.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.CodeSamples.Tests.csproj" />
+  <Project Path="TiltBrushToolkitThirdParty.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Analytics.Hooks.Editor.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.DeviceSimulator.csproj" />

@@ -2,6 +2,9 @@
 #
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
+# Dossier de stockage local des .unitypackage tiers (Open Brush SDK, etc.)
+# Re-télécharger depuis https://github.com/icosa-foundation/open-brush-toolkit/releases
+/ThirdParty/
 .utmp/
 /[Ll]ibrary/
 /[Tt]emp/
