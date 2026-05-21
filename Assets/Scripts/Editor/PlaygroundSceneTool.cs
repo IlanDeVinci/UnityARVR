@@ -26,13 +26,24 @@ using UnityEngine.XR.Interaction.Toolkit.Locomotion.Teleportation;
 /// </summary>
 public static class PlaygroundSceneTool
 {
-    private const string ScenePath          = "Assets/Scenes/MainScene.unity";
-    private const string FloorMatPath       = "Assets/Material/FloorWhite.mat";
-    private const string WallMatPath        = "Assets/Material/WallConcrete.mat";
-    private const string PaintMatPath       = "Assets/Material/PaintBase.mat";
-    private const string SprayTexturePath   = "Assets/Textures/SprayCircle.png";
-    private const string OpenBrushPackage   = "ThirdParty/open-brush-toolkit-UnitySDK-v24.0.0.unitypackage";
-    private const float  FloorScale         = 100f;
+    private const string ScenePath            = "Assets/Scenes/MainScene.unity";
+    private const string FloorMatPath         = "Assets/Material/FloorWhite.mat";
+    private const string WallMatPath          = "Assets/Material/WallConcrete.mat";
+    private const string PaintMatPath         = "Assets/Material/PaintBase.mat";
+    private const string FrameMatPath         = "Assets/Material/PictureFrameBlack.mat";
+    private const string PictureBaseMatPath   = "Assets/Material/PictureBase.mat";
+    private const string FrameMatBlackPath    = "Assets/Material/Frame_Black.mat";
+    private const string FrameMatWhitePath    = "Assets/Material/Frame_White.mat";
+    private const string FrameMatGoldPath     = "Assets/Material/Frame_Gold.mat";
+    private const string FrameMatWoodPath     = "Assets/Material/Frame_Wood.mat";
+    private const string FrameMatNonePath     = "Assets/Material/Frame_None.mat";
+    private const string VideosResourceDir    = "Assets/Resources/Videos";
+    private const string MusicResourceDir     = "Assets/Resources/Music";
+    private const string SprayTexturePath     = "Assets/Textures/SprayCircle.png";
+    private const string BrushesDir           = "Assets/Textures/Brushes";
+    private const string PicturesResourceDir  = "Assets/Resources/Pictures";
+    private const string OpenBrushPackage     = "ThirdParty/open-brush-toolkit-UnitySDK-v24.0.0.unitypackage";
+    private const float  FloorScale           = 100f;
 
     [MenuItem("Tools/Playground/Clean MainScene & Setup Playground")]
     public static void RunFromMenu()
@@ -55,7 +66,15 @@ public static class PlaygroundSceneTool
         CreateInfiniteFloor();
         SpawnTestWalls();
         CreatePaintAssets();
+        CreateBrushAssets();
+        CreatePictureAssets();
+        CreateFrameMaterials();
+        CreateMediaFolders();
+        EnsureCityInScene();
         AttachSprayPainterToRightHand();
+        AttachPicturePlacerToLeftHand();
+        AttachMusicSpawner();
+        SetupPaintMenu();
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -157,7 +176,9 @@ public static class PlaygroundSceneTool
             || n == "EventSystem" || n == "GameManager"
             || n == "Directional Light" || n == "Global Volume"
             || n == "Canvas" || n == "MainMenu"
-            || n == "InfiniteFloor" || n == "TestWalls" || n == "PaintStamps")
+            || n == "InfiniteFloor" || n == "TestWalls" || n == "PaintStamps"
+            || n == "Tableaux" || n == "MusicManager" || n == "Boomboxes"
+            || n.StartsWith("city-iimmersive") || n.StartsWith("City"))
             return true;
 
         return false;
@@ -356,6 +377,9 @@ public static class PlaygroundSceneTool
 
         // Câbler le matériau
         AssignPaintMaterial(painter);
+
+        // Câbler le tableau de pinceaux
+        AssignBrushes(painter);
     }
 
     private static void AssignSprayInputs(Component painter)
@@ -365,7 +389,9 @@ public static class PlaygroundSceneTool
                                   ?? FindActionReference("XRI RightHand Interaction", "Activate Value")
                                   ?? FindActionReference("XRI RightHand Interaction", "Activate");
 
-        InputActionReference cycle = FindActionReference("XRI Right", "Primary Button")
+        InputActionReference cycle = FindActionReference("XRI Right", "Secondary Button")
+                                  ?? FindActionReference("XRI RightHand", "Secondary Button")
+                                  ?? FindActionReference("XRI Right", "Primary Button")
                                   ?? FindActionReference("XRI RightHand", "Primary Button");
 
         SerializedObject so = new SerializedObject(painter);
@@ -376,8 +402,30 @@ public static class PlaygroundSceneTool
         }
         if (cycle != null)
         {
-            var p = so.FindProperty("cycleColorAction");
+            var p = so.FindProperty("cycleBrushAction");
             if (p != null) p.objectReferenceValue = cycle;
+        }
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void AssignBrushes(Component painter)
+    {
+        string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { BrushesDir });
+        if (guids == null || guids.Length == 0) return;
+
+        // Tri par nom pour ordre stable
+        System.Array.Sort(guids, (a, b) =>
+            string.Compare(AssetDatabase.GUIDToAssetPath(a), AssetDatabase.GUIDToAssetPath(b)));
+
+        SerializedObject so = new SerializedObject(painter);
+        var arr = so.FindProperty("brushes");
+        if (arr == null) return;
+
+        arr.arraySize = guids.Length;
+        for (int i = 0; i < guids.Length; i++)
+        {
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guids[i]));
+            arr.GetArrayElementAtIndex(i).objectReferenceValue = tex;
         }
         so.ApplyModifiedPropertiesWithoutUndo();
     }
@@ -390,6 +438,563 @@ public static class PlaygroundSceneTool
         var p = so.FindProperty("paintBaseMaterial");
         if (p != null) p.objectReferenceValue = mat;
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    //  Assets tableaux (cadre noir + matériau image + placeholders)
+    // ────────────────────────────────────────────────────────────────────
+
+    private static void CreatePictureAssets()
+    {
+        EnsureFolder("Assets/Material");
+        EnsureFolder("Assets/Resources");
+        EnsureFolder(PicturesResourceDir);
+
+        // Matériau cadre (noir mat Lit)
+        if (AssetDatabase.LoadAssetAtPath<Material>(FrameMatPath) == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var frame = new Material(shader) { name = "PictureFrameBlack", color = new Color(0.05f, 0.05f, 0.05f) };
+            if (frame.HasProperty("_BaseColor")) frame.SetColor("_BaseColor", new Color(0.05f, 0.05f, 0.05f));
+            if (frame.HasProperty("_Smoothness")) frame.SetFloat("_Smoothness", 0.25f);
+            if (frame.HasProperty("_Metallic"))   frame.SetFloat("_Metallic", 0f);
+            AssetDatabase.CreateAsset(frame, FrameMatPath);
+        }
+
+        // Matériau image (URP Unlit opaque)
+        if (AssetDatabase.LoadAssetAtPath<Material>(PictureBaseMatPath) == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Texture");
+            var pic = new Material(shader) { name = "PictureBase", color = Color.white };
+            AssetDatabase.CreateAsset(pic, PictureBaseMatPath);
+        }
+
+        // 4 placeholders procéduraux (uniquement si Resources/Pictures est vide)
+        if (CountPicturesInFolder() == 0)
+        {
+            GeneratePicturePlaceholder("Pic_01_Sunset",   new Color(1f, 0.45f, 0.15f), new Color(0.85f, 0.10f, 0.55f), PicturePattern.LinearGradient);
+            GeneratePicturePlaceholder("Pic_02_Ocean",    new Color(0.05f, 0.25f, 0.55f), new Color(0.15f, 0.85f, 0.95f), PicturePattern.RadialGradient);
+            GeneratePicturePlaceholder("Pic_03_Forest",   new Color(0.05f, 0.30f, 0.10f), new Color(0.65f, 0.95f, 0.30f), PicturePattern.Stripes);
+            GeneratePicturePlaceholder("Pic_04_Abstract", new Color(0.95f, 0.85f, 0.10f), new Color(0.45f, 0.10f, 0.85f), PicturePattern.Checker);
+            AssetDatabase.Refresh();
+        }
+    }
+
+    private enum PicturePattern { LinearGradient, RadialGradient, Stripes, Checker }
+
+    private static int CountPicturesInFolder()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { PicturesResourceDir });
+        return guids != null ? guids.Length : 0;
+    }
+
+    private static void GeneratePicturePlaceholder(string name, Color a, Color b, PicturePattern pattern)
+    {
+        const int size = 512;
+        string path = $"{PicturesResourceDir}/{name}.png";
+        if (File.Exists(path)) return;
+
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = x / (float)(size - 1);
+            float v = y / (float)(size - 1);
+            float t;
+            switch (pattern)
+            {
+                case PicturePattern.LinearGradient:
+                    t = v;
+                    break;
+                case PicturePattern.RadialGradient:
+                    t = Mathf.Clamp01(Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 1.6f);
+                    break;
+                case PicturePattern.Stripes:
+                    t = (Mathf.Sin(v * Mathf.PI * 8f) > 0f) ? 1f : 0f;
+                    break;
+                case PicturePattern.Checker:
+                    int gx = Mathf.FloorToInt(u * 6f), gy = Mathf.FloorToInt(v * 6f);
+                    t = ((gx + gy) % 2 == 0) ? 0f : 1f;
+                    break;
+                default: t = u; break;
+            }
+            // Petit bruit pour casser l'aspect "trop CG"
+            t = Mathf.Clamp01(t + (Mathf.PerlinNoise(x * 0.03f, y * 0.03f) - 0.5f) * 0.06f);
+            tex.SetPixel(x, y, Color.Lerp(a, b, t));
+        }
+        tex.Apply();
+        File.WriteAllBytes(path, tex.EncodeToPNG());
+        Object.DestroyImmediate(tex);
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+        var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer != null)
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.mipmapEnabled = true;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.SaveAndReimport();
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    //  PicturePlacer sur la main gauche
+    // ────────────────────────────────────────────────────────────────────
+
+    private static void AttachPicturePlacerToLeftHand()
+    {
+        XROrigin origin = Object.FindAnyObjectByType<XROrigin>();
+        if (origin == null)
+        {
+            Debug.LogWarning("[PlaygroundSceneTool] XR Origin introuvable, PicturePlacer non attaché.");
+            return;
+        }
+
+        Transform hand = FindByNameRecursive(origin.transform, "Left Controller")
+                      ?? FindByNameRecursive(origin.transform, "LeftHand Controller")
+                      ?? FindByNameRecursive(origin.transform, "LeftHand")
+                      ?? FindByNameRecursive(origin.transform, "Left Hand");
+
+        if (hand == null)
+        {
+            Debug.LogWarning("[PlaygroundSceneTool] Main gauche introuvable dans le XR Rig.");
+            return;
+        }
+
+        var placerType = System.Type.GetType("PicturePlacer, Assembly-CSharp");
+        if (placerType == null)
+        {
+            Debug.LogWarning("[PlaygroundSceneTool] Type PicturePlacer introuvable (compilation requise).");
+            return;
+        }
+
+        var placer = hand.gameObject.GetComponent(placerType);
+        if (placer == null) placer = hand.gameObject.AddComponent(placerType);
+
+        AssignPictureInputs(placer);
+        AssignPictureMaterials(placer);
+    }
+
+    private static void AssignPictureInputs(Component placer)
+    {
+        // On utilise une action "press" — Activate (button) plutôt qu'Activate Value (float)
+        InputActionReference place = FindActionReference("XRI Left Interaction", "Activate")
+                                  ?? FindActionReference("XRI LeftHand Interaction", "Activate")
+                                  ?? FindActionReference("XRI Left Interaction", "Activate Value")
+                                  ?? FindActionReference("XRI LeftHand Interaction", "Activate Value");
+
+        InputActionReference cycle = FindActionReference("XRI Left", "Primary Button")
+                                  ?? FindActionReference("XRI LeftHand", "Primary Button");
+
+        SerializedObject so = new SerializedObject(placer);
+        if (place != null)
+        {
+            var p = so.FindProperty("placeAction");
+            if (p != null) p.objectReferenceValue = place;
+        }
+        if (cycle != null)
+        {
+            var p = so.FindProperty("cyclePictureAction");
+            if (p != null) p.objectReferenceValue = cycle;
+        }
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void AssignPictureMaterials(Component placer)
+    {
+        SerializedObject so = new SerializedObject(placer);
+        var pic   = AssetDatabase.LoadAssetAtPath<Material>(PictureBaseMatPath);
+        if (pic != null)
+        {
+            var p = so.FindProperty("pictureBaseMaterial");
+            if (p != null) p.objectReferenceValue = pic;
+        }
+
+        // Array frameMaterials (5 cadres : Black, White, Gold, Wood, None)
+        var arr = so.FindProperty("frameMaterials");
+        if (arr != null)
+        {
+            string[] paths = { FrameMatBlackPath, FrameMatWhitePath, FrameMatGoldPath, FrameMatWoodPath, FrameMatNonePath };
+            arr.arraySize = paths.Length;
+            for (int i = 0; i < paths.Length; i++)
+            {
+                var m = AssetDatabase.LoadAssetAtPath<Material>(paths[i]);
+                arr.GetArrayElementAtIndex(i).objectReferenceValue = m;
+            }
+        }
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    //  Cadres (5 matériaux)
+    // ────────────────────────────────────────────────────────────────────
+
+    private static void CreateFrameMaterials()
+    {
+        EnsureFolder("Assets/Material");
+
+        CreateLitMaterial(FrameMatBlackPath, "Frame_Black", new Color(0.05f, 0.05f, 0.05f), 0.25f, 0f);
+        CreateLitMaterial(FrameMatWhitePath, "Frame_White", new Color(0.95f, 0.95f, 0.95f), 0.40f, 0f);
+        CreateLitMaterial(FrameMatGoldPath,  "Frame_Gold",  new Color(0.92f, 0.74f, 0.22f), 0.85f, 0.85f);
+        CreateLitMaterial(FrameMatWoodPath,  "Frame_Wood",  new Color(0.45f, 0.30f, 0.18f), 0.20f, 0f);
+
+        // "None" = un matériau totalement transparent (cadre invisible)
+        if (AssetDatabase.LoadAssetAtPath<Material>(FrameMatNonePath) == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Transparent");
+            var mat = new Material(shader) { name = "Frame_None", color = new Color(0f, 0f, 0f, 0f) };
+            if (mat.HasProperty("_Surface")) mat.SetFloat("_Surface", 1f);
+            if (mat.HasProperty("_Blend"))   mat.SetFloat("_Blend", 0f);
+            if (mat.HasProperty("_SrcBlend")) mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            if (mat.HasProperty("_DstBlend")) mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (mat.HasProperty("_ZWrite"))   mat.SetFloat("_ZWrite", 0f);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            AssetDatabase.CreateAsset(mat, FrameMatNonePath);
+        }
+    }
+
+    private static void CreateLitMaterial(string path, string name, Color color, float smoothness, float metallic)
+    {
+        if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+        var mat = new Material(shader) { name = name, color = color };
+        if (mat.HasProperty("_BaseColor"))   mat.SetColor("_BaseColor", color);
+        if (mat.HasProperty("_Smoothness"))  mat.SetFloat("_Smoothness", smoothness);
+        if (mat.HasProperty("_Metallic"))    mat.SetFloat("_Metallic", metallic);
+        AssetDatabase.CreateAsset(mat, path);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    //  Dossiers Resources/Videos & Resources/Music
+    // ────────────────────────────────────────────────────────────────────
+
+    private static void CreateMediaFolders()
+    {
+        EnsureFolder("Assets/Resources");
+        EnsureFolder(VideosResourceDir);
+        EnsureFolder(MusicResourceDir);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    //  MusicSpawner sur le GameObject hôte du menu
+    // ────────────────────────────────────────────────────────────────────
+
+    // ────────────────────────────────────────────────────────────────────
+    //  City (FBX importé) : auto-instanciation si absent
+    // ────────────────────────────────────────────────────────────────────
+
+    private const string CityFbxPath = "Assets/Models/city-iimmersive-readytodev.fbx";
+
+    private static void EnsureCityInScene()
+    {
+        // Vérifie s'il y a déjà une instance dans la scène
+        var roots = SceneManager.GetActiveScene().GetRootGameObjects();
+        foreach (var r in roots)
+        {
+            if (r != null && r.name.StartsWith("city-iimmersive"))
+            {
+                Debug.Log($"[PlaygroundSceneTool] City déjà présent : {r.name}");
+                return;
+            }
+        }
+
+        var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(CityFbxPath);
+        if (fbx == null)
+        {
+            Debug.LogWarning($"[PlaygroundSceneTool] {CityFbxPath} introuvable, city non instancié.");
+            return;
+        }
+
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
+        if (instance == null)
+        {
+            Debug.LogWarning("[PlaygroundSceneTool] InstantiatePrefab a échoué pour le city.");
+            return;
+        }
+        instance.transform.position = Vector3.zero;
+        instance.transform.rotation = Quaternion.identity;
+        Debug.Log($"[PlaygroundSceneTool] City instancié : {instance.name}");
+    }
+
+    private static void AttachMusicSpawner()
+    {
+        var spawnerType = System.Type.GetType("MusicSpawner, Assembly-CSharp");
+        if (spawnerType == null)
+        {
+            Debug.LogWarning("[PlaygroundSceneTool] Type MusicSpawner introuvable (compilation requise).");
+            return;
+        }
+
+        // Crée un GameObject racine "MusicManager" pour héberger le MusicSpawner
+        GameObject host = GameObject.Find("MusicManager");
+        if (host == null)
+        {
+            host = new GameObject("MusicManager");
+            host.transform.position = Vector3.zero;
+        }
+
+        var existing = host.GetComponent(spawnerType);
+        if (existing == null) host.AddComponent(spawnerType);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    //  Génération des pinceaux (5 textures procédurales)
+    // ────────────────────────────────────────────────────────────────────
+
+    private static void CreateBrushAssets()
+    {
+        EnsureFolder(BrushesDir);
+
+        TryGenerateBrush(BrushesDir + "/Brush_01_Soft.png",       BrushKind.Soft);
+        TryGenerateBrush(BrushesDir + "/Brush_02_Hard.png",       BrushKind.Hard);
+        TryGenerateBrush(BrushesDir + "/Brush_03_Splatter.png",   BrushKind.Splatter);
+        TryGenerateBrush(BrushesDir + "/Brush_04_Square.png",     BrushKind.Square);
+        TryGenerateBrush(BrushesDir + "/Brush_05_Line.png",       BrushKind.Line);
+    }
+
+    private enum BrushKind { Soft, Hard, Splatter, Square, Line }
+
+    private static void TryGenerateBrush(string path, BrushKind kind)
+    {
+        if (AssetDatabase.LoadAssetAtPath<Texture2D>(path) != null) return;
+
+        const int size = 256;
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Vector2 c = new Vector2(size / 2f, size / 2f);
+        float maxR = size / 2f;
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float u = x / (float)(size - 1);
+            float v = y / (float)(size - 1);
+            float a = 0f;
+
+            switch (kind)
+            {
+                case BrushKind.Soft:
+                {
+                    float d = Vector2.Distance(new Vector2(x, y), c) / maxR;
+                    a = Mathf.Pow(Mathf.Clamp01(1f - d), 1.8f);
+                    a *= 0.92f + 0.08f * Mathf.PerlinNoise(x * 0.15f, y * 0.15f);
+                    break;
+                }
+                case BrushKind.Hard:
+                {
+                    float d = Vector2.Distance(new Vector2(x, y), c) / maxR;
+                    a = d < 0.45f ? 1f : Mathf.Clamp01((0.55f - d) / 0.10f);
+                    a *= 0.95f + 0.05f * Mathf.PerlinNoise(x * 0.2f, y * 0.2f);
+                    break;
+                }
+                case BrushKind.Splatter:
+                {
+                    float total = 0f;
+                    // 6 dots aléatoires deterministes via seed
+                    Random.State prev = Random.state;
+                    Random.InitState(42);
+                    for (int k = 0; k < 12; k++)
+                    {
+                        float cx = Random.Range(0.15f, 0.85f);
+                        float cy = Random.Range(0.15f, 0.85f);
+                        float r  = Random.Range(0.06f, 0.16f);
+                        float dd = Vector2.Distance(new Vector2(u, v), new Vector2(cx, cy)) / r;
+                        total += Mathf.Pow(Mathf.Clamp01(1f - dd), 2.2f);
+                    }
+                    Random.state = prev;
+                    a = Mathf.Clamp01(total);
+                    break;
+                }
+                case BrushKind.Square:
+                {
+                    // Carré arrondi soft
+                    float dx = Mathf.Abs(u - 0.5f) * 2f;
+                    float dy = Mathf.Abs(v - 0.5f) * 2f;
+                    float d  = Mathf.Pow(Mathf.Pow(dx, 4f) + Mathf.Pow(dy, 4f), 0.25f);
+                    a = Mathf.Pow(Mathf.Clamp01(1f - d), 1.6f);
+                    break;
+                }
+                case BrushKind.Line:
+                {
+                    // Bande horizontale soft
+                    float dy = Mathf.Abs(v - 0.5f) * 2f;
+                    float dx = Mathf.Abs(u - 0.5f) * 2f;
+                    float falloffX = Mathf.Pow(Mathf.Clamp01(1f - Mathf.Pow(dx, 8f)), 0.5f);
+                    float falloffY = Mathf.Pow(Mathf.Clamp01(1f - dy), 2.5f);
+                    a = falloffX * falloffY;
+                    break;
+                }
+            }
+
+            tex.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01(a)));
+        }
+
+        tex.Apply();
+        File.WriteAllBytes(path, tex.EncodeToPNG());
+        Object.DestroyImmediate(tex);
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+        var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer != null)
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = true;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.SaveAndReimport();
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    //  Menu peinture : remplace SpawnMenuUI par PaintMenuUI
+    // ────────────────────────────────────────────────────────────────────
+
+    private static void SetupPaintMenu()
+    {
+        var paintMenuType = System.Type.GetType("PaintMenuUI, Assembly-CSharp");
+        if (paintMenuType == null)
+        {
+            Debug.LogWarning("[PlaygroundSceneTool] Type PaintMenuUI introuvable (compilation requise).");
+            return;
+        }
+
+        var spawnMenuType = System.Type.GetType("SpawnMenuUI, Assembly-CSharp");
+
+        // 1) Localiser le GameObject qui héberge SpawnMenuUI dans la scène
+        GameObject host = null;
+        InputActionReference savedToggle = null;
+        GameObject savedPanel = null;
+
+        if (spawnMenuType != null)
+        {
+            var existing = Object.FindObjectsByType(spawnMenuType, FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (existing != null && existing.Length > 0)
+            {
+                var comp = existing[0] as Component;
+                host = comp.gameObject;
+
+                var so = new SerializedObject(comp);
+                var toggle = so.FindProperty("menuToggleAction");
+                if (toggle != null && toggle.objectReferenceValue is InputActionReference r)
+                    savedToggle = r;
+                var panel = so.FindProperty("menuPanel");
+                if (panel != null && panel.objectReferenceValue is GameObject g)
+                    savedPanel = g;
+
+                // Détruire toutes les instances de SpawnMenuUI (peut y en avoir plusieurs)
+                for (int i = existing.Length - 1; i >= 0; i--)
+                {
+                    if (existing[i] != null) Object.DestroyImmediate(existing[i], true);
+                }
+            }
+        }
+
+        // Nettoyer les PaintMenuUI mal placés (ex : ancien essai sur MainMenu).
+        // Ne supprimer QUE si host est connu — sinon on garde tout, on choisira ensuite.
+        if (host != null)
+        {
+            var stale = Object.FindObjectsByType(paintMenuType, FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (stale != null)
+            {
+                foreach (var s in stale)
+                {
+                    if (s == null) continue;
+                    if (((Component)s).gameObject != host)
+                        Object.DestroyImmediate(s, true);
+                }
+            }
+        }
+
+        if (host == null)
+        {
+            // Pas de SpawnMenuUI (déjà nettoyé). Cherche un PaintMenuUI existant à re-câbler.
+            var existingPaint = Object.FindObjectsByType(paintMenuType, FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (existingPaint != null && existingPaint.Length > 0)
+            {
+                host = ((Component)existingPaint[0]).gameObject;
+                var pmSoExisting = new SerializedObject(existingPaint[0]);
+                var pp = pmSoExisting.FindProperty("menuPanel");
+                if (pp != null && pp.objectReferenceValue is GameObject g) savedPanel = g;
+                var tt = pmSoExisting.FindProperty("menuToggleAction");
+                if (tt != null && tt.objectReferenceValue is InputActionReference rr) savedToggle = rr;
+                Debug.Log($"[PlaygroundSceneTool] PaintMenuUI existant trouvé sur '{host.name}', re-câblage.");
+            }
+        }
+
+        if (host == null)
+        {
+            // Dernier recours : attache au GameManager
+            host = GameObject.Find("GameManager");
+            if (host == null)
+            {
+                Debug.LogWarning("[PlaygroundSceneTool] Aucun host trouvé pour PaintMenuUI.");
+                return;
+            }
+            Debug.LogWarning("[PlaygroundSceneTool] Aucun SpawnMenuUI/PaintMenuUI trouvé. Attache au GameManager.");
+        }
+
+        // Fallback toggle si l'ancien n'en avait pas
+        if (savedToggle == null)
+            savedToggle = FindActionReference("Player", "OpenMenu")
+                       ?? FindActionReference("XRI Left", "Menu")
+                       ?? FindActionReference("XRI LeftHand", "Menu")
+                       ?? FindActionReference("XRI Left", "Primary Button")
+                       ?? FindActionReference("XRI LeftHand", "Primary Button");
+
+        // Fallback panel : cherche un GameObject "Panel" enfant d'un Canvas dans la scène
+        if (savedPanel == null) savedPanel = FindMenuPanelInScene();
+
+        // 2) Ajouter PaintMenuUI sur le même GameObject
+        var paintMenu = host.GetComponent(paintMenuType);
+        if (paintMenu == null) paintMenu = host.AddComponent(paintMenuType);
+
+        SerializedObject pmSo = new SerializedObject(paintMenu);
+        if (savedPanel != null)
+        {
+            var p = pmSo.FindProperty("menuPanel");
+            if (p != null) p.objectReferenceValue = savedPanel;
+        }
+        if (savedToggle != null)
+        {
+            var p = pmSo.FindProperty("menuToggleAction");
+            if (p != null) p.objectReferenceValue = savedToggle;
+        }
+
+        // Lier les 4 références d'outils
+        WireFirstOfType(pmSo, "sprayPainter",  "SprayPainter, Assembly-CSharp");
+        WireFirstOfType(pmSo, "objectSpawner", "ObjectSpawner, Assembly-CSharp");
+        WireFirstOfType(pmSo, "picturePlacer", "PicturePlacer, Assembly-CSharp");
+        WireFirstOfType(pmSo, "musicSpawner",  "MusicSpawner, Assembly-CSharp");
+
+        pmSo.ApplyModifiedPropertiesWithoutUndo();
+
+        Debug.Log($"[PlaygroundSceneTool] PaintMenuUI installé sur '{host.name}'. " +
+                  $"menuPanel={(savedPanel != null ? savedPanel.name : "<null>")}, " +
+                  $"toggle={(savedToggle != null ? savedToggle.name : "<null>")}.");
+    }
+
+    private static GameObject FindMenuPanelInScene()
+    {
+        var roots = SceneManager.GetActiveScene().GetRootGameObjects();
+        foreach (var r in roots)
+        {
+            var canvas = r.GetComponentInChildren<Canvas>(true);
+            if (canvas == null) continue;
+            // Cherche un enfant nommé "Panel"
+            var t = FindByNameRecursive(canvas.transform, "Panel");
+            if (t != null) return t.gameObject;
+        }
+        return null;
+    }
+
+    private static void WireFirstOfType(SerializedObject so, string fieldName, string typeQualifiedName)
+    {
+        var t = System.Type.GetType(typeQualifiedName);
+        if (t == null) return;
+        var found = Object.FindObjectsByType(t, FindObjectsInactive.Include, FindObjectsSortMode.None);
+        if (found == null || found.Length == 0) return;
+        var p = so.FindProperty(fieldName);
+        if (p != null) p.objectReferenceValue = found[0] as Object;
     }
 
     private static InputActionReference FindActionReference(string mapName, string actionName)

@@ -1,50 +1,17 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 public class SceneResetManager : MonoBehaviour
 {
-    [Header("Input")]
-    [SerializeField] private InputActionReference resetAction;
+    [Header("References")]
     [SerializeField] private Transform playerTransform;
 
     [Header("Settings")]
-    [SerializeField] private bool requireDoublePress = true;
-    [SerializeField] private float doublePressWindow = 0.5f;
-
-    private float lastPressTime;
-
-    private void OnEnable()
-    {
-        resetAction.action.Enable();
-        resetAction.action.performed += OnReset;
-    }
-
-    private void OnDisable()
-    {
-        resetAction.action.performed -= OnReset;
-        resetAction.action.Disable();
-    }
+    [SerializeField] private float fallThresholdY = -10f;
 
     private void Update()
     {
-        if (playerTransform != null && playerTransform.position.y < -10f)
-        {
-            ResetScene();
-        }
-    }
-
-    private void OnReset(InputAction.CallbackContext ctx)
-    {
-        if (requireDoublePress)
-        {
-            if (Time.unscaledTime - lastPressTime < doublePressWindow)
-            {
-                ResetScene();
-            }
-            lastPressTime = Time.unscaledTime;
-        }
-        else
+        if (playerTransform != null && playerTransform.position.y < fallThresholdY)
         {
             ResetScene();
         }
@@ -55,9 +22,6 @@ public class SceneResetManager : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
-    /// <summary>
-    /// Alternative: only destroy spawned objects without reloading the scene.
-    /// </summary>
     public void ClearSpawnedObjects()
     {
         GameObject[] spawned = GameObject.FindGameObjectsWithTag("SpawnedObject");
